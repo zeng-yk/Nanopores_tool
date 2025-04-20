@@ -44,7 +44,6 @@ class AnalysisPage(QWidget):
     def ui(self):
         main_layout = QHBoxLayout(self)  # 主窗口使用水平布局
 
-        # Left Splitter: Data Load and Parameter Settings
         left_splitter = QSplitter(Qt.Vertical)
 
         # 数据加载区 (Existing code)
@@ -57,11 +56,9 @@ class AnalysisPage(QWidget):
         self.add_button.setIcon(QIcon("media/导入.svg"))
         self.add_button.setToolTip("导入文件")
 
-
         self.remove_button = QPushButton()
         self.remove_button.setIcon(QIcon("media/文本剔除.svg"))
         self.remove_button.setToolTip("删除选中项")
-
 
         btn_layout.addWidget(self.add_button)
         btn_layout.addWidget(self.remove_button)
@@ -104,20 +101,20 @@ class AnalysisPage(QWidget):
         form = QFormLayout()
 
         # 添加各个参数
-        self.height_widget, self.cb_height, self.spin_height = self.add_checkbox_spinbox("height", 100,checked=False)
+        self.height_widget, self.cb_height, self.spin_height = self.add_checkbox_spinbox("height", 100, checked=False)
         self.threshold_widget, self.cb_threshold, self.spin_threshold = self.add_checkbox_spinbox("threshold", 0.5,
-                                                                                                  decimals=True,checked=False)
+                                                                                                  decimals=True,
+                                                                                                  checked=False)
         self.distance_widget, self.cb_distance, self.spin_distance = self.add_checkbox_spinbox("distance", 100)
         self.prominence_widget, self.cb_prominence, self.spin_prominence = self.add_checkbox_spinbox("prominence", 50.0,
                                                                                                      decimals=True)
-        self.width_widget, self.cb_width, self.spin_width = self.add_checkbox_spinbox("width", 3,checked=False)
+        self.width_widget, self.cb_width, self.spin_width = self.add_checkbox_spinbox("width", 3, checked=False)
 
         form.addRow("Height:", self.height_widget)
         form.addRow("Threshold:", self.threshold_widget)
         form.addRow("Distance:", self.distance_widget)
         form.addRow("Prominence:", self.prominence_widget)
         form.addRow("Width:", self.width_widget)
-
 
         self.color1_widget, self.btn_color1 = self.add_color_selector("#FF0000")
         self.color2_widget, self.btn_color2 = self.add_color_selector("#00FF00")
@@ -184,8 +181,7 @@ class AnalysisPage(QWidget):
 
         self.plot1 = QWidget()
         self.plot1.setObjectName("plot1")
-        plot1_layout = QVBoxLayout(self.plot1)
-        # plot1_layout.addWidget(QLabel("图1 Placeholder"))
+        self.plot1_layout = QVBoxLayout(self.plot1)
         self.plot1.setStyleSheet('''
             QWidget#plot1 {
                 background-color: #d0d0d0;
@@ -201,7 +197,7 @@ class AnalysisPage(QWidget):
         # 图1的数据区 (Empty Placeholder)
         self.plot1_data = QWidget()
         self.plot1_data.setObjectName("plot1_data")
-        plot1_data_layout = QVBoxLayout(self.plot1_data)
+        self.plot1_data_layout = QVBoxLayout(self.plot1_data)
         # plot1_data_layout.addWidget(QLabel("图1的数据 Placeholder"))
         self.plot1_data.setStyleSheet('''
             QWidget#plot1_data {
@@ -211,14 +207,12 @@ class AnalysisPage(QWidget):
         ''')
         bottom_right_splitter.addWidget(self.plot1_data)
 
-        # Set initial sizes for the bottom right splitter sections (optional)
-        bottom_right_splitter.setSizes([600, 300])  # Example sizes
+        bottom_right_splitter.setSizes([600, 300])
 
         right_section_layout.addWidget(bottom_right_splitter)
-        right_section_layout.setStretchFactor(self.main_plot, 2)  # Give more space to main plot
+        right_section_layout.setStretchFactor(self.main_plot, 2)
         right_section_layout.setStretchFactor(bottom_right_splitter, 1)
 
-        # Add the left and right sections to the main horizontal layout
         main_layout.addWidget(left_splitter)
         main_layout.addWidget(right_section_widget)
 
@@ -298,7 +292,6 @@ class AnalysisPage(QWidget):
         layout.addWidget(button)
         return container, button
 
-
     def add_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "选择数据文件")
         if file_path:
@@ -329,7 +322,6 @@ class AnalysisPage(QWidget):
                 self.full_x = None
                 self.full_y = None
                 self.data_length = 0
-
 
     def refresh_list(self):
         self.trigger_refresh()
@@ -370,8 +362,8 @@ class AnalysisPage(QWidget):
                     return
                 abf = pyabf.ABF(filepath)
                 abf.setSweep(0)
-                x = abf.sweepX # 时间点
-                y = abf.sweepY # 个数
+                x = abf.sweepX  # 时间点
+                y = abf.sweepY  # 个数
 
             elif ext in [".csv", ".txt"]:
                 try:
@@ -397,18 +389,18 @@ class AnalysisPage(QWidget):
                 self.show_error("错误", f"不支持的文件类型: {ext}")
                 return
 
-            self.full_x = x # 时间点
-            self.full_y = y # 数据点
+            self.full_x = x  # 时间点
+            self.full_y = y  # 数据点
             self.data_length = len(x)
             self.data = (x, y)
 
         except Exception as e:
             self.show_error("数据加载/处理失败", f"处理文件 '{os.path.basename(filepath)}' 时出错:\n{e}")
 
-
     def apply_data_range_to_view(self):
         load_start_time = time.time()
         self.peaks = self.data_peak()
+        # print(self.peaks)
         self.plot_main()
 
         self.current_peak_index = 0
@@ -417,16 +409,15 @@ class AnalysisPage(QWidget):
         print(f"检测到 {len(self.peaks)} 个峰值")
         print(f"数据加载完成，耗时: {time.time() - load_start_time:.2f} 秒")
 
-
     def data_peak(self):
         # 取反信号
         inverted_signal = -self.full_y
-        print(inverted_signal)
-        print(self.spin_height.logical_value)
-        print(self.spin_threshold.logical_value)
-        print(self.spin_width.logical_value)
-        print(self.spin_distance.logical_value)
-        print(self.spin_prominence.logical_value)
+        # print(inverted_signal)
+        # print(self.spin_height.logical_value)
+        # print(self.spin_threshold.logical_value)
+        # print(self.spin_width.logical_value)
+        # print(self.spin_distance.logical_value)
+        # print(self.spin_prominence.logical_value)
         peaks, properties = find_peaks(inverted_signal,
                                        height=self.spin_height.logical_value,
                                        threshold=self.spin_threshold.logical_value,
@@ -437,14 +428,13 @@ class AnalysisPage(QWidget):
         prominences = peak_prominences(inverted_signal, peaks)[0]
         return peaks
 
-
     def plot_main(self):
         if self.full_x is None or self.full_y is None:
             return
 
         self.ax.clear()
 
-        self.ax.plot(self.full_x , self.full_y, label="Original Signal", color="blue")
+        self.ax.plot(self.full_x, self.full_y, label="Original Signal", color="blue")
 
         if self.peaks is not None:
             peak_times = self.full_x[self.peaks]
@@ -456,11 +446,12 @@ class AnalysisPage(QWidget):
         self.canvas.draw()
 
     def plot_single_peak(self):
-        print("绘制单峰型图")
+        # print("绘制单峰型图")
         if not hasattr(self, 'peaks') or len(self.peaks) == 0:
             return
 
         peak_idx = self.peaks[self.current_peak_index]
+        # print(f"当前索引:{peak_idx}")
         window = 100  # 展示峰形前后点数
         start = max(0, peak_idx - window)
         end = min(len(self.full_y), peak_idx + window)
@@ -471,8 +462,10 @@ class AnalysisPage(QWidget):
         inverted = -y
 
         # 半高宽计算
-        results_half = peak_widths(inverted, [local_peak], rel_height=1)
+        results_full = peak_widths(inverted, [local_peak], rel_height=1)
+        results_half = peak_widths(inverted, [local_peak], rel_height=0.5)
 
+        # 删除旧图
         if hasattr(self, 'plot1_canvas'):
             self.plot1_layout.removeWidget(self.plot1_canvas)
             self.plot1_canvas.setParent(None)
@@ -483,33 +476,52 @@ class AnalysisPage(QWidget):
         ax.plot(x[local_peak], y[local_peak], "ro", label="Valley")
 
         # 半高宽线
-        left_ips = int(results_half[2][0])
-        right_ips = int(results_half[3][0])
-        height = -results_half[1][0]
+        left_ips = int(results_full[2][0])
+        right_ips = int(results_full[3][0])
+        height = -results_full[1][0]
         ax.hlines(height, x[left_ips], x[right_ips], color="green", linewidth=2, label="Width")
+
+        half_height = -results_half[1][0]
+        ax.hlines(half_height, x[results_half[2][0].astype(int)], x[results_half[3][0].astype(int)], color="yellow", linewidth=2, label="Half_width")
 
         ax.set_title(f"Valley {self.current_peak_index + 1}/{len(self.peaks)}")
         ax.legend()
         ax.grid(True)
 
         self.plot1_canvas = FigureCanvas(fig)
-        self.plot1_layout = QVBoxLayout()
+        # self.plot1_layout = QVBoxLayout()
         self.plot1_canvas.setParent(self.plot1)
         self.plot1_layout.addWidget(self.plot1_canvas)
         self.plot1.setLayout(self.plot1_layout)
         self.plot1_canvas.draw()
+
+        # 更新数据区显示
+        for i in reversed(range(self.plot1_data_layout.count())):
+            widget_to_remove = self.plot1_data_layout.itemAt(i).widget()
+            if widget_to_remove is not None:
+                widget_to_remove.setParent(None)
+
+        label_texts = [
+            f"index: {self.current_peak_index + 1} / {len(self.peaks)}",
+            f"position (x，y):   ({x[local_peak]:.2f}，{y[local_peak]:.2f})",
+            f"Left IP (x): {x[left_ips]:.2f}    ;    "
+            f"Right IP (x): {x[right_ips]:.2f}",
+            f"Width: {(x[right_ips] - x[left_ips]):.5f}",
+            f"Height: {(height-y[local_peak]):.2f}",
+            f"Half Height: {(half_height-y[local_peak]):.2f}"
+        ]
+        for text in label_texts:
+            self.plot1_data_layout.addWidget(QLabel(text))
 
     def show_prev_peak(self):
         if self.current_peak_index > 0:
             self.current_peak_index -= 1
             self.plot_single_peak()
 
-
     def show_next_peak(self):
         if self.current_peak_index < len(self.peaks) - 1:
             self.current_peak_index += 1
             self.plot_single_peak()
-
 
     # 分页信号传递
     def trigger_refresh(self):
