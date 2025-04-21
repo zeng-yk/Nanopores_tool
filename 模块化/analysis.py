@@ -2,17 +2,32 @@
 import os
 import time
 
+import matplotlib
 import pyabf
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QListWidget, QPushButton, QFileDialog, QHBoxLayout, QListWidgetItem, \
     QSplitter, QFormLayout, QSpinBox, QColorDialog, QLabel, QDoubleSpinBox, QCheckBox
-from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtCore import pyqtSignal, Qt, QTimer
+from matplotlib import font_manager
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
 from scipy.signal import find_peaks, peak_prominences, peak_widths
+from PyQt5.QtCore import QThread
+from load_worker import LoadWorker  # 导入你新建的 worker 类
+import platform
 
+def get_chinese_font():
+    system = platform.system()
+    if system == "Windows":
+        # Windows 常见中文字体
+        font_path = "C:/Windows/Fonts/simhei.ttf"  # 黑体
+    elif system == "Darwin":
+        # macOS 使用 STHeiti 或 PingFang
+        font_path = "/System/Library/Fonts/STHeiti Light.ttc"
+
+    return font_manager.FontProperties(fname=font_path)
 
 class AnalysisPage(QWidget):
     request_refresh = pyqtSignal()
@@ -97,6 +112,9 @@ class AnalysisPage(QWidget):
                 border: 1px solid #999;
             }
         ''')
+        self.function_1 = QWidget()
+        self.function_1.setObjectName("function_1")
+        function_1_layout = QVBoxLayout()
 
         form = QFormLayout()
 
@@ -124,21 +142,46 @@ class AnalysisPage(QWidget):
         form.addRow("Color 2:", self.color2_widget)
         form.addRow("Color 3:", self.color3_widget)
 
-        parameter_settings_layout.addLayout(form)
+        function_1_layout.addLayout(form)
 
         self.apply_range_button = QPushButton("应用参数")
         self.apply_range_button.clicked.connect(self.apply_data_range_to_view)
-        parameter_settings_layout.addWidget(self.apply_range_button)
+        function_1_layout.addWidget(self.apply_range_button)
+
+        self.load_time_label = QLabel("加载时间：尚未加载")
+        function_1_layout.addWidget(self.load_time_label)
+
+        self.load_timer = QTimer()
+        self.load_timer.timeout.connect(self.update_load_time)
+        self.load_start_time = None
+
+        self.function_1.setLayout(function_1_layout)
+        self.function_1.setStyleSheet('''
+            QWidget#function_1 {
+                border: 1px solid black;
+            }
+        ''')
+        parameter_settings_layout.addWidget(self.function_1)
+
+        parameter_settings_layout.addStretch(1)
+        self.submit_button = QPushButton("提交识别结果")
+        # self.self.submit_button.clicked.connect(self.apply_data_range_to_view)
+        parameter_settings_layout.addWidget(self.submit_button)
+
+        self.save_button = QPushButton("导出识别结果")
+        # self.save_button.clicked.connect(self.apply_data_range_to_view)
+        parameter_settings_layout.addWidget(self.save_button)
+        parameter_settings_layout.addStretch(1)
 
         left_splitter.addWidget(self.parameter_settings)
 
         left_splitter.setSizes([300, 500])  # Example sizes
 
-        # Right Section: Main Plot and Bottom Plots/Data
+        # 右侧的图展示区域
         right_section_widget = QWidget()
         right_section_layout = QVBoxLayout(right_section_widget)
 
-        # 主图区 (Empty Placeholder)
+        # 主图区
         self.main_plot = QWidget()
         self.main_plot.setObjectName("main_plot")
         main_plot_layout = QVBoxLayout(self.main_plot)
@@ -158,7 +201,6 @@ class AnalysisPage(QWidget):
         ''')
         right_section_layout.addWidget(self.main_plot)
 
-        # Bottom Right Splitter: Plot 1 and Plot 1 Data
         bottom_right_splitter = QSplitter(Qt.Horizontal)
 
         # 图1区 (Empty Placeholder with navigation)
@@ -335,6 +377,13 @@ class AnalysisPage(QWidget):
             item.setToolTip(path)
             self.file_list.addItem(item)
 
+    def update_load_time(self):
+        # print("update_load_time 被调用了")
+        if self.load_start_time is not None:
+            elapsed = time.time() - self.load_start_time
+            self.load_time_label.setText(f"加载时间：{elapsed:.2f} 秒")
+
+
     def load_selected_file(self, item):
         self.index = self.file_list.row(item)
         filepath = self.data_file_paths[self.index]
@@ -398,16 +447,38 @@ class AnalysisPage(QWidget):
             self.show_error("数据加载/处理失败", f"处理文件 '{os.path.basename(filepath)}' 时出错:\n{e}")
 
     def apply_data_range_to_view(self):
-        load_start_time = time.time()
-        self.peaks = self.data_peak()
-        # print(self.peaks)
+        self.load_start_time = time.time()
+        self.load_timer.start(50)  # 每 50 毫秒刷新一次标签
+        print("定时器启动了")
+
+        # 创建线程和 worker
+        self.thread = QThread()
+        self.worker = LoadWorker(self)
+        self.worker.moveToThread(self.thread)
+
+        # 连接信号槽
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.on_loading_finished)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+
+        # 启动线程
+        self.thread.start()
+
+    def on_loading_finished(self):
+        self.load_timer.stop()
+
+        self.peaks = self.worker.peaks  # 从 worker 拿回来
         self.plot_main()
-
         self.current_peak_index = 0
-        self.plot_single_peak()  # 初始绘图
+        self.plot_single_peak()
 
+        final_time = time.time() - self.load_start_time
+        self.load_time_label.setText(f"加载时间：{final_time:.2f} 秒")
         print(f"检测到 {len(self.peaks)} 个峰值")
-        print(f"数据加载完成，耗时: {time.time() - load_start_time:.2f} 秒")
+        print(f"数据加载完成，耗时: {final_time:.2f} 秒")
+
 
     def data_peak(self):
         # 取反信号
@@ -439,11 +510,14 @@ class AnalysisPage(QWidget):
         if self.peaks is not None:
             peak_times = self.full_x[self.peaks]
             peak_values = self.full_y[self.peaks]
-            self.ax.plot(peak_times, peak_values, "ro", label="Detected Peaks")
+            self.ax.plot(peak_times, peak_values, "ro", label="Peaks")
 
-        self.ax.set_title("主图区域：信号与峰值")
+
+        self.ax.set_title("信号与峰值",fontproperties=get_chinese_font())
+        # self.ax.figure.suptitle("主图区域", fontsize=14)
         self.ax.legend()
         self.canvas.draw()
+
 
     def plot_single_peak(self):
         # print("绘制单峰型图")
@@ -482,7 +556,8 @@ class AnalysisPage(QWidget):
         ax.hlines(height, x[left_ips], x[right_ips], color="green", linewidth=2, label="Width")
 
         half_height = -results_half[1][0]
-        ax.hlines(half_height, x[results_half[2][0].astype(int)], x[results_half[3][0].astype(int)], color="yellow", linewidth=2, label="Half_width")
+        ax.hlines(half_height, x[results_half[2][0].astype(int)], x[results_half[3][0].astype(int)], color="yellow",
+                  linewidth=2, label="Half_width")
 
         ax.set_title(f"Valley {self.current_peak_index + 1}/{len(self.peaks)}")
         ax.legend()
@@ -507,8 +582,8 @@ class AnalysisPage(QWidget):
             f"Left IP (x): {x[left_ips]:.2f}    ;    "
             f"Right IP (x): {x[right_ips]:.2f}",
             f"Width: {(x[right_ips] - x[left_ips]):.5f}",
-            f"Height: {(height-y[local_peak]):.2f}",
-            f"Half Height: {(half_height-y[local_peak]):.2f}"
+            f"Height: {(height - y[local_peak]):.2f}",
+            f"Half Height: {(half_height - y[local_peak]):.2f}"
         ]
         for text in label_texts:
             self.plot1_data_layout.addWidget(QLabel(text))

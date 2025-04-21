@@ -15,6 +15,7 @@ import pyqtgraph as pg
 
 from data_manager import *
 from analysis import AnalysisPage
+from clustering import ClusteringPage
 from predict import PredictPage
 from settings import SettingsPage
 
@@ -312,13 +313,17 @@ class DataViewer(QMainWindow):
         self.button_view_analysis.setToolTip('波形分析')
         self.button_view_analysis.setCheckable(True)
 
+        self.button_view_clustering = QPushButton()  # 对应第三个页面
+        self.button_view_clustering.setIcon(QIcon("media/聚类.svg"))
+        self.button_view_clustering.setToolTip('聚类')
+        self.button_view_clustering.setCheckable(True)
 
-        self.button_view_predict = QPushButton()  # 对应第三个页面
+        self.button_view_predict = QPushButton()  # 对应第四个页面
         self.button_view_predict.setIcon(QIcon("media/推理.svg"))
         self.button_view_predict.setToolTip('预测')
         self.button_view_predict.setCheckable(True)
 
-        self.button_view_settings = QPushButton()  # 对应第四个页面
+        self.button_view_settings = QPushButton()  # 对应第五个页面
         self.button_view_settings.setIcon(QIcon("media/设置.svg"))
         self.button_view_settings.setToolTip('设置')
         self.button_view_settings.setCheckable(True)
@@ -327,18 +332,21 @@ class DataViewer(QMainWindow):
         self.toolbar_button_group = QButtonGroup(self)
         self.toolbar_button_group.addButton(self.button_view_data, 0)  # 关联索引 0
         self.toolbar_button_group.addButton(self.button_view_analysis, 1)  # 关联索引 1
-        self.toolbar_button_group.addButton(self.button_view_predict, 2)  # 关联索引 2
-        self.toolbar_button_group.addButton(self.button_view_settings, 3)  # 关联索引 2
+        self.toolbar_button_group.addButton(self.button_view_clustering, 2)  # 关联索引 1
+        self.toolbar_button_group.addButton(self.button_view_predict, 3)  # 关联索引 2
+        self.toolbar_button_group.addButton(self.button_view_settings, 4)  # 关联索引 2
         self.toolbar_button_group.setExclusive(True)
 
         # --- 连接按钮点击信号到槽函数 ---
         self.button_view_data.clicked.connect(self.show_data_view_page)
         self.button_view_analysis.clicked.connect(self.show_analysis_page)
+        self.button_view_clustering.clicked.connect(self.show_clustering_page)
         self.button_view_predict.clicked.connect(self.show_predict_page)
         self.button_view_settings.clicked.connect(self.show_settings_page)
 
         right_toolbar_layout.addWidget(self.button_view_data)
         right_toolbar_layout.addWidget(self.button_view_analysis)
+        right_toolbar_layout.addWidget(self.button_view_clustering)
         right_toolbar_layout.addWidget(self.button_view_predict)
         right_toolbar_layout.addWidget(self.button_view_settings)
         # right_toolbar_layout.addStretch() # 移除拉伸，让按钮在顶部
@@ -906,25 +914,34 @@ class DataViewer(QMainWindow):
             self.main_stack.setCurrentIndex(1)
         print("切换到 分析 页面")
 
+    def show_clustering_page(self):
+        # 创建或切换到分析页面
+        if self.main_stack.count() < 3:  # 如果页面不存在，创建它
+            self.clustering_page = ClusteringPage()
+            self.main_stack.addWidget(self.clustering_page)
+            self.main_stack.setCurrentWidget(self.clustering_page)
+        else:
+            self.main_stack.setCurrentIndex(2)
+        print("切换到 聚类 页面")
 
     def show_predict_page(self):
         # 创建或切换到分析页面
-        if self.main_stack.count() < 3:  # 如果页面不存在，创建它
+        if self.main_stack.count() < 4:  # 如果页面不存在，创建它
             self.predict_page = PredictPage()
             self.main_stack.addWidget(self.predict_page)
             self.main_stack.setCurrentWidget(self.predict_page)
         else:
-            self.main_stack.setCurrentIndex(2)
+            self.main_stack.setCurrentIndex(3)
         print("切换到 预测 页面")
 
     def show_settings_page(self):
         # 创建或切换到设置页面
-        if self.main_stack.count() < 4:  # 如果页面不存在，创建它
+        if self.main_stack.count() < 5:  # 如果页面不存在，创建它
             self.settings_page = SettingsPage()
             self.main_stack.addWidget(self.settings_page)
             self.main_stack.setCurrentWidget(self.settings_page)
         else:
-            self.main_stack.setCurrentIndex(3)
+            self.main_stack.setCurrentIndex(4)
         print("切换到 设置 页面")
 
 if __name__ == "__main__":
