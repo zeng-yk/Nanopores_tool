@@ -36,7 +36,8 @@ class DataViewer(QMainWindow):
         super().__init__()
 
         self.data_manager = DataManager()
-        self.analysis_page = AnalysisPage(self.data_manager)
+        self.pages = {}
+        # self.analysis_page = AnalysisPage(self.data_manager)
         # self.clustering_page = ClusteringPage(self.data_manager)
 
         self.data_file_paths = []  # 存放路径
@@ -905,44 +906,36 @@ class DataViewer(QMainWindow):
         print("切换到 数据视图 页面")
 
     def show_analysis_page(self):
-        # 创建或切换到分析页面
-        if self.main_stack.count() < 2:  # 如果页面不存在，创建它
-            # self.analysis_page = AnalysisPage(self.data_manager)
+        if 'analysis' not in self.pages:
+            self.analysis_page = AnalysisPage(self.data_manager)
             self.analysis_page.request_refresh.connect(self.refresh_list)
             self.main_stack.addWidget(self.analysis_page)
-            self.main_stack.setCurrentWidget(self.analysis_page)
-        else:
-            self.main_stack.setCurrentIndex(1)
+            self.pages['analysis'] = self.analysis_page
+        self.main_stack.setCurrentWidget(self.pages['analysis'])
         print("切换到 分析 页面")
 
     def show_clustering_page(self):
-        # 创建或切换到分析页面
-        if self.main_stack.count() < 3:  # 如果页面不存在，创建它
+        if 'clustering' not in self.pages:
             self.clustering_page = ClusteringPage(self.data_manager)
             self.main_stack.addWidget(self.clustering_page)
-            self.main_stack.setCurrentWidget(self.clustering_page)
-        else:
-            self.main_stack.setCurrentIndex(2)
+            self.pages['clustering'] = self.clustering_page
+        self.main_stack.setCurrentWidget(self.pages['clustering'])
         print("切换到 聚类 页面")
 
     def show_predict_page(self):
-        # 创建或切换到分析页面
-        if self.main_stack.count() < 4:  # 如果页面不存在，创建它
+        if 'predict' not in self.pages:
             self.predict_page = PredictPage()
             self.main_stack.addWidget(self.predict_page)
-            self.main_stack.setCurrentWidget(self.predict_page)
-        else:
-            self.main_stack.setCurrentIndex(3)
+            self.pages['predict'] = self.predict_page
+        self.main_stack.setCurrentWidget(self.pages['predict'])
         print("切换到 预测 页面")
 
     def show_settings_page(self):
-        # 创建或切换到设置页面
-        if self.main_stack.count() < 5:  # 如果页面不存在，创建它
+        if 'settings' not in self.pages:
             self.settings_page = SettingsPage()
             self.main_stack.addWidget(self.settings_page)
-            self.main_stack.setCurrentWidget(self.settings_page)
-        else:
-            self.main_stack.setCurrentIndex(4)
+            self.pages['settings'] = self.settings_page
+        self.main_stack.setCurrentWidget(self.pages['settings'])
         print("切换到 设置 页面")
 
 if __name__ == "__main__":

@@ -24,17 +24,17 @@ class ClusteringPage(QWidget):
         left_splitter = QSplitter(Qt.Vertical)
         left_splitter.setObjectName("left_splitter")
         # 添加简单的分隔条样式，使其可见
-        left_splitter.setStyleSheet("""
-                    QSplitter::handle {
-                        background-color: #cccccc; /* Light gray handle */
-                    }
-                    QSplitter::handle:vertical {
-                        height: 4px; /* Handle thickness */
-                    }
-                    QSplitter::handle:pressed {
-                        background-color: #aaaaaa; /* Darker gray when pressed */
-                    }
-                """)
+        # left_splitter.setStyleSheet("""
+        #             QSplitter::handle {
+        #                 background-color: #cccccc; /* Light gray handle */
+        #             }
+        #             QSplitter::handle:vertical {
+        #                 height: 4px; /* Handle thickness */
+        #             }
+        #             QSplitter::handle:pressed {
+        #                 background-color: #aaaaaa; /* Darker gray when pressed */
+        #             }
+        #         """)
         # --- 配置数据加载区 ---
         self.setup_data_load_area(left_splitter)  # 修改后的方法
 
@@ -49,7 +49,7 @@ class ClusteringPage(QWidget):
         dropdown_area_layout.setContentsMargins(5, 5, 5, 5)
 
         self.function_selector = QComboBox()
-        self.function_selector.addItems(["功能 1", "功能 2", "功能 3"])
+        self.function_selector.addItems(["KMeans", "功能 2", "功能 3"])
         self.function_selector.setObjectName("function_selector")
         dropdown_area_layout.addWidget(QLabel("聚类算法:"))  # 标签放在组合框上方
         dropdown_area_layout.addWidget(self.function_selector)
@@ -80,7 +80,7 @@ class ClusteringPage(QWidget):
         self.parameter_settings_area = QWidget()
         self.parameter_settings_area.setObjectName("parameter_settings_area")
         parameter_settings_layout = QVBoxLayout(self.parameter_settings_area)
-        self.parameter_label = QLabel("参数设置区 (待切换)")  # 标签用于显示切换状态
+        self.parameter_label = QLabel("请选择一个聚类算法")  # 标签用于显示切换状态
         self.parameter_label.setAlignment(Qt.AlignCenter)
         parameter_settings_layout.addWidget(self.parameter_label)
         # 基本样式
