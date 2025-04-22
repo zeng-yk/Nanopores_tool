@@ -37,6 +37,7 @@ class DataViewer(QMainWindow):
 
         self.data_manager = DataManager()
         self.analysis_page = AnalysisPage(self.data_manager)
+        # self.clustering_page = ClusteringPage(self.data_manager)
 
         self.data_file_paths = []  # 存放路径
         self.index = 0
@@ -444,7 +445,7 @@ class DataViewer(QMainWindow):
 
     def load_selected_file(self, item):
         self.index = self.file_list.row(item)
-        # print(self.file_list.row(item))
+        print(self.file_list.row(item))
         # print(type(self.file_list.row(item)))
         filepath = self.data_file_paths[self.index]
         print(filepath)
@@ -917,7 +918,7 @@ class DataViewer(QMainWindow):
     def show_clustering_page(self):
         # 创建或切换到分析页面
         if self.main_stack.count() < 3:  # 如果页面不存在，创建它
-            self.clustering_page = ClusteringPage()
+            self.clustering_page = ClusteringPage(self.data_manager)
             self.main_stack.addWidget(self.clustering_page)
             self.main_stack.setCurrentWidget(self.clustering_page)
         else:

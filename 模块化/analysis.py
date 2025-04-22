@@ -2,11 +2,10 @@
 import os
 import time
 
-import matplotlib
 import pyabf
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QListWidget, QPushButton, QFileDialog, QHBoxLayout, QListWidgetItem, \
-    QSplitter, QFormLayout, QSpinBox, QColorDialog, QLabel, QDoubleSpinBox, QCheckBox
+    QSplitter, QFormLayout, QSpinBox, QColorDialog, QLabel, QDoubleSpinBox, QCheckBox, QMessageBox, QInputDialog
 from PyQt5.QtCore import pyqtSignal, Qt, QTimer
 from matplotlib import font_manager
 
@@ -15,8 +14,9 @@ from matplotlib.figure import Figure
 import numpy as np
 from scipy.signal import find_peaks, peak_prominences, peak_widths
 from PyQt5.QtCore import QThread
-from load_worker import LoadWorker  # 导入你新建的 worker 类
+from load_worker import LoadWorker  # 导入多线程
 import platform
+
 
 def get_chinese_font():
     system = platform.system()
@@ -35,6 +35,7 @@ class AnalysisPage(QWidget):
     def __init__(self, data_manager, parent=None):
         super().__init__(parent)
 
+        self.data_manager = data_manager
         self.width_widget = None
         self.prominence_widget = None
         self.distance_widget = None
@@ -51,14 +52,12 @@ class AnalysisPage(QWidget):
         self.full_x = None
         self.full_y = None
 
-        self.data_manager = data_manager
         # 文件列表
         self.data_file_paths = []  # 存放路径
         self.ui()
 
     def ui(self):
         main_layout = QHBoxLayout(self)  # 主窗口使用水平布局
-
         left_splitter = QSplitter(Qt.Vertical)
 
         # 数据加载区 (Existing code)
@@ -165,7 +164,7 @@ class AnalysisPage(QWidget):
 
         parameter_settings_layout.addStretch(1)
         self.submit_button = QPushButton("提交识别结果")
-        # self.self.submit_button.clicked.connect(self.apply_data_range_to_view)
+        self.submit_button.clicked.connect(self.submit_data)
         parameter_settings_layout.addWidget(self.submit_button)
 
         self.save_button = QPushButton("导出识别结果")
@@ -335,7 +334,7 @@ class AnalysisPage(QWidget):
         return container, button
 
     def add_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "选择数据文件")
+        file_path, _ = QFileDialog.getOpenFileName(self, "选择数据文件", "", "数据文件 (*.csv *.txt *.abf);;所有文件 (*)")
         if file_path:
             self.data_manager.add_file(file_path)
             # self.file_list.addItem(file_path)
@@ -470,6 +469,7 @@ class AnalysisPage(QWidget):
         self.load_timer.stop()
 
         self.peaks = self.worker.peaks  # 从 worker 拿回来
+
         self.plot_main()
         self.current_peak_index = 0
         self.plot_single_peak()
@@ -495,8 +495,7 @@ class AnalysisPage(QWidget):
                                        distance=self.spin_distance.logical_value,
                                        prominence=self.spin_prominence.logical_value,
                                        width=self.spin_width.logical_value)
-        print(peaks)
-        prominences = peak_prominences(inverted_signal, peaks)[0]
+        # prominences = peak_prominences(inverted_signal, peaks)[0]
         return peaks
 
     def plot_main(self):
@@ -536,7 +535,7 @@ class AnalysisPage(QWidget):
         inverted = -y
 
         # 半高宽计算
-        results_full = peak_widths(inverted, [local_peak], rel_height=1)
+        results_full = peak_widths(inverted, [local_peak], rel_height=0.9)
         results_half = peak_widths(inverted, [local_peak], rel_height=0.5)
 
         # 删除旧图
@@ -587,6 +586,24 @@ class AnalysisPage(QWidget):
         ]
         for text in label_texts:
             self.plot1_data_layout.addWidget(QLabel(text))
+
+    def submit_data(self):
+        if self.peaks is None or len(self.peaks) == 0:
+            QMessageBox.warning(self, "提示", "当前没有可提交的识别结果。")
+            return
+
+        name, ok = QInputDialog.getText(self, "命名识别结果", "请输入该识别结果的名称：")
+        if ok and name.strip():
+            submission = {
+                "name": name.strip(),
+                "data": self.peaks
+            }
+            self.data_manager.add_peaks(submission)
+            QMessageBox.information(self, "提交成功", f"识别结果已保存为“{name}”。")
+
+        elif ok:
+            QMessageBox.warning(self, "提示", "名称不能为空，请重新提交。")
+
 
     def show_prev_peak(self):
         if self.current_peak_index > 0:
