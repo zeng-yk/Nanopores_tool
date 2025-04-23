@@ -1,6 +1,7 @@
 # clustering.py
 import threading
 
+import numpy as np
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy, QHBoxLayout, QPushButton, QStackedWidget, \
     QComboBox, QFrame, QSplitter, QListWidget, QApplication
 from PyQt5.QtCore import Qt, pyqtSignal
@@ -263,14 +264,100 @@ class ClusteringPage(QWidget):
         return None  # 如果当前页面不是参数控件
 
 
-    def run_selected_algorithm(self):
+    def run_selected_algorithm(self, QMessageBox=None):
         """示例：获取参数并准备运行算法"""
+        # 1. 获取选中的算法名称
         selected_algorithm_name = self.function_selector.currentText()
-        parameters = self.get_current_parameters()
-
-        if parameters is None:
-            print("无法获取当前算法的参数。")
+        if not selected_algorithm_name:
+            print("错误：没有选中任何算法。")
+            # 可以添加 QMessageBox 提示用户
             return
 
-        print(f"准备运行算法: {selected_algorithm_name}")
-        print(f"使用参数: {parameters}")
+        print(f"选定算法: {selected_algorithm_name}")
+
+        # 2. 获取当前算法的参数
+        parameters = self.get_current_parameters()
+        if parameters is None:
+            print("错误：无法获取当前算法的参数。")
+            # 可以添加 QMessageBox 提示用户
+            return
+
+        print(f"获取参数: {parameters}")
+
+        # 3. 从 DataManager 获取用于聚类的数据
+        # !!! 关键：你需要确定从哪个 submission 获取数据 !!!
+        #    通常是基于 submission_list_widget 的当前选中项
+        current_item = self.submission_list_widget.currentItem()
+        if not current_item:
+            print("错误：请在'已提交的识别数据'中选择要进行聚类的数据。")
+            # 使用 QMessageBox 提示用户
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "缺少数据", "请在'已提交的识别数据'中选择要进行聚类的数据项。")
+            return
+
+        selected_data_name = current_item.text()
+        print(f"目标数据: {selected_data_name}")
+
+        # 调用 DataManager 的方法来获取与该名称对应的数据
+        # !!! 你需要在 DataManager 中实现 get_data_by_name 方法 !!!
+        path_to_process,data_to_process = self.data_manager.get_data_by_name(selected_data_name)
+
+        if data_to_process is None:
+            print(f"错误：无法从 DataManager 获取名为 '{selected_data_name}' 的数据。")
+            # 可以添加 QMessageBox 提示用户
+            QMessageBox.critical(self, "数据错误", f"无法找到或加载名为 '{selected_data_name}' 的数据。")
+            return
+
+        # 假设 data_to_process 是一个适合聚类算法的格式，例如 numpy 数组
+        print(f"成功获取数据，形状: {getattr(data_to_process, 'shape', '未知')}") # 打印数据形状（如果是数组）
+
+        # 4. 根据算法名称调用不同的算法逻辑
+        try:
+            results = None
+            if selected_algorithm_name == "K-Means":
+                # 调用你的 K-Means 算法实现
+                # 假设你有 Algorithms.run_kmeans(data, params)
+                from algorithms import Algorithms # 确保导入
+                print("调用 K-Means 算法...")
+                results = Algorithms.run_kmeans(data_to_process, parameters)
+
+            elif selected_algorithm_name == "DBSCAN":
+                # 调用你的 DBSCAN 算法实现
+                # 假设你有 Algorithms.run_dbscan(data, params)
+                from algorithms import Algorithms # 确保导入
+                print("调用 DBSCAN 算法...")
+                results = Algorithms.run_dbscan(data_to_process, parameters)
+
+            elif selected_algorithm_name == "功能 3":
+                print("功能 3 不需要执行复杂算法或尚未实现。")
+                # 可以直接进行一些简单操作或显示提示
+                results = "功能 3 执行完成" # 示例结果
+
+            else:
+                print(f"错误：未知的算法或未处理的算法分支: {selected_algorithm_name}")
+                QMessageBox.warning(self, "未实现", f"算法 '{selected_algorithm_name}' 的执行逻辑尚未实现。")
+                return
+
+            # 5. 处理和显示结果
+            if results is not None:
+                print(f"算法执行成功！结果预览（前10个）: {results[:10] if isinstance(results, (list, np.ndarray)) else results}")
+                # 在这里更新你的主图区域 (self.main_plot_area) 来显示聚类结果
+                # 这部分通常涉及绘图逻辑，例如使用 Matplotlib 或 PyQtGraph
+                self.update_plot(data_to_process, results) # 调用一个专门的绘图函数
+            else:
+                print("算法执行完成，但没有返回明确的结果。")
+
+
+        except ImportError:
+             print("错误：未能导入 algorithms 模块或其中包含的算法库（如 sklearn）。请确保已安装。")
+             QMessageBox.critical(self, "导入错误", "运行算法所需的库未能导入，请检查安装。")
+        except Exception as e:
+            # 捕获算法执行中可能出现的任何其他错误
+            print(f"运行算法 '{selected_algorithm_name}' 时出错: {e}")
+            import traceback
+            traceback.print_exc() # 打印详细的错误堆栈
+            QMessageBox.critical(self, "算法错误", f"执行 '{selected_algorithm_name}' 时发生错误:\n{e}")
+
+        print("--- 聚类算法运行结束 ---")
+
+

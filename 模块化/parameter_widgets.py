@@ -37,25 +37,52 @@ class KMeansParameterWidget(BaseParameterWidget):
         layout.addWidget(self.k_label, 0, 0) # 第0行第0列
         layout.addWidget(self.k_spinbox, 0, 1) # 第0行第1列
 
-        # 参数2: 最大迭代次数
+        # 参数2: 算法运行次数
+        self.n_init_label = QLabel("算法运行次数:")
+        self.n_init_spinbox = QSpinBox()
+        self.n_init_spinbox.setMinimum(1)
+        self.n_init_spinbox.setMaximum(50)
+        self.n_init_spinbox.setValue(10)
+        layout.addWidget(self.n_init_label, 1, 0)
+        layout.addWidget(self.n_init_spinbox, 1, 1)
+
+        # 参数3: 最大迭代次数
         self.max_iter_label = QLabel("最大迭代次数:")
         self.max_iter_spinbox = QSpinBox()
-        self.max_iter_spinbox.setMinimum(10)
-        self.max_iter_spinbox.setMaximum(1000)
+        self.max_iter_spinbox.setMinimum(100)
+        self.max_iter_spinbox.setMaximum(1500)
         self.max_iter_spinbox.setValue(300)
-        layout.addWidget(self.max_iter_label, 1, 0)
-        layout.addWidget(self.max_iter_spinbox, 1, 1)
+        layout.addWidget(self.max_iter_label, 2, 0)
+        layout.addWidget(self.max_iter_spinbox, 2, 1)
+
+        # 参数4: 随机性
+        self.random_state_label = QLabel("随机性:")
+        self.random_state_spinbox = QSpinBox()
+        self.random_state_spinbox.setMinimum(0)
+        self.random_state_spinbox.setMaximum(10)
+        self.random_state_spinbox.setValue(0)
+        layout.addWidget(self.random_state_label, 3, 0)
+        layout.addWidget(self.random_state_spinbox, 3, 1)
 
         # 添加一个弹簧，将控件推到顶部
         spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
-        layout.addItem(spacer, 2, 0, 1, 2) # 跨越两列
-
+        layout.addItem(spacer, 4, 0, 1, 2) # 跨越两列
+        """
+        layout.addItem(item, row, column, rowSpan, columnSpan) 
+        param:
+        row:第几行
+        column：第几列
+        rowSpan：占据的行数
+        columnSpan：占据的列数
+        """
         self.connect_signals() # 连接信号
 
     def get_parameters(self) -> dict:
         return {
             "n_clusters": self.k_spinbox.value(),
-            "max_iter": self.max_iter_spinbox.value()
+            "n_init": self.n_init_spinbox.value(),
+            "max_iter": self.max_iter_spinbox.value(),
+            "random_state": self.random_state_spinbox.value(),
         }
 
     def connect_signals(self):
@@ -121,19 +148,3 @@ class PlaceholderParameterWidget(BaseParameterWidget):
 
      # connect_signals 不需要实现
 
-# --- (可选) 算法逻辑模块 ---
-# 你可以将实际的聚类算法放在单独的文件中，例如 algorithms.py
-# class Algorithms:
-#     @staticmethod
-#     def run_kmeans(data, params):
-#         from sklearn.cluster import KMeans
-#         kmeans = KMeans(n_clusters=params['n_clusters'], max_iter=params['max_iter'], n_init=10)
-#         labels = kmeans.fit_predict(data)
-#         return labels
-#
-#     @staticmethod
-#     def run_dbscan(data, params):
-#         from sklearn.cluster import DBSCAN
-#         dbscan = DBSCAN(eps=params['eps'], min_samples=params['min_samples'])
-#         labels = dbscan.fit_predict(data)
-#         return labels

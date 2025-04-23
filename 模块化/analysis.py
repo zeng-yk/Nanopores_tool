@@ -35,6 +35,8 @@ class AnalysisPage(QWidget):
     def __init__(self, data_manager, parent=None):
         super().__init__(parent)
 
+        self.filepath = None
+
         self.data_manager = data_manager
         self.width_widget = None
         self.prominence_widget = None
@@ -55,6 +57,8 @@ class AnalysisPage(QWidget):
         # 文件列表
         self.data_file_paths = []  # 存放路径
         self.ui()
+
+        self.flag = True
 
     def ui(self):
         main_layout = QHBoxLayout(self)  # 主窗口使用水平布局
@@ -385,9 +389,9 @@ class AnalysisPage(QWidget):
 
     def load_selected_file(self, item):
         self.index = self.file_list.row(item)
-        filepath = self.data_file_paths[self.index]
-        print(filepath)
-        self.load_data(filepath)
+        self.filepath = self.data_file_paths[self.index]
+        print(self.filepath)
+        self.load_data(self.filepath)
 
     def load_data(self, filepath):
         print("调用加载函数")
@@ -446,27 +450,30 @@ class AnalysisPage(QWidget):
             self.show_error("数据加载/处理失败", f"处理文件 '{os.path.basename(filepath)}' 时出错:\n{e}")
 
     def apply_data_range_to_view(self):
-        self.load_start_time = time.time()
-        self.load_timer.start(50)  # 每 50 毫秒刷新一次标签
-        print("定时器启动了")
+        if self.flag:
+            self.flag = False
+            self.load_start_time = time.time()
+            self.load_timer.start(50)  # 每 50 毫秒刷新一次标签
+            print("定时器启动了")
 
-        # 创建线程和 worker
-        self.thread = QThread()
-        self.worker = LoadWorker(self)
-        self.worker.moveToThread(self.thread)
+            # 创建线程和 worker
+            self.thread = QThread()
+            self.worker = LoadWorker(self)
+            self.worker.moveToThread(self.thread)
 
-        # 连接信号槽
-        self.thread.started.connect(self.worker.run)
-        self.worker.finished.connect(self.on_loading_finished)
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self.thread.deleteLater)
+            # 连接信号槽
+            self.thread.started.connect(self.worker.run)
+            self.worker.finished.connect(self.on_loading_finished)
+            self.worker.finished.connect(self.thread.quit)
+            self.worker.finished.connect(self.worker.deleteLater)
+            self.thread.finished.connect(self.thread.deleteLater)
 
-        # 启动线程
-        self.thread.start()
+            # 启动线程
+            self.thread.start()
 
     def on_loading_finished(self):
         self.load_timer.stop()
+        self.flag = True
 
         self.peaks = self.worker.peaks  # 从 worker 拿回来
 
@@ -596,6 +603,7 @@ class AnalysisPage(QWidget):
         if ok and name.strip():
             submission = {
                 "name": name.strip(),
+                "path": self.filepath,
                 "data": self.peaks
             }
             self.data_manager.add_peaks(submission)
