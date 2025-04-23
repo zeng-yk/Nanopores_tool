@@ -45,8 +45,6 @@ class AnalysisPage(QWidget):
         self.height_widget = None
 
         self.index = 0
-        self.current_data = None  # 当前加载的数据信号
-        self.current_times = None
         self.peaks = None
         self.peak_properties = None
 
@@ -261,9 +259,6 @@ class AnalysisPage(QWidget):
         main_layout.addWidget(left_splitter)
         main_layout.addWidget(right_section_widget)
 
-        # Set initial sizes for the main splitter sections (optional, effectively handled by stretch factors and initial sizes)
-        # main_layout.setStretchFactor(left_splitter, 1)
-        # main_layout.setStretchFactor(right_section_widget, 3) # Give more space to the right section
 
     @staticmethod
     # ====== 第一组：可选参数（带复选框）======

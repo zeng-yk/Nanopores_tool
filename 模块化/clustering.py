@@ -317,7 +317,7 @@ class ClusteringPage(QWidget):
             ax = self.figure.add_subplot(111)
 
             # 3. 绘制原始信号
-            ax.plot(first_n_points, label='信号', alpha=0.6, color='blue')  # 给原始信号一个固定颜色
+            ax.plot(first_n_points, label='信号', color='blue')  # 给原始信号一个固定颜色
 
             # 4. 确定类别数量和颜色映射
             unique_labels = np.unique(labels)  # 获取所有唯一的类别标签
@@ -325,7 +325,9 @@ class ClusteringPage(QWidget):
             # 使用 Matplotlib 的颜色映射来自动获取足够多的颜色
             # 'tab10', 'tab20', 'viridis', 'plasma' 等都是不错的选择
             # get_cmap 需要类别数，确保至少为 1
-            cmap = plt.cm.get_cmap('tab10', max(1, n_clusters))
+            cmap = plt.cm.get_cmap('tab20', max(1, n_clusters)+1)
+
+            print("labels:", labels)
 
             # 5. 按类别绘制峰值点
             plotted_labels = set()  # 用于跟踪哪些类别的图例已经添加
@@ -345,7 +347,7 @@ class ClusteringPage(QWidget):
                     ax.plot(peak_index, first_n_points[peak_index], 'o', color=color)
 
             # 6. 设置图形属性
-            ax.set_title('K-Means 聚类分类的峰值')
+            ax.set_title('K-Means 聚类分类的峰值',fontproperties=get_chinese_font())
             ax.set_xlabel("时间点 (索引)")  # 或者根据你的数据是秒还是索引
             ax.set_ylabel(ylabel if ylabel else "幅值")  # 使用传入的 Y 轴标签
 
