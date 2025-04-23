@@ -5,9 +5,30 @@ import numpy as np
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy, QHBoxLayout, QPushButton, QStackedWidget, \
     QComboBox, QFrame, QSplitter, QListWidget, QApplication
 from PyQt5.QtCore import Qt, pyqtSignal
+from matplotlib import font_manager
+
 from parameter_widgets import (BaseParameterWidget, KMeansParameterWidget,
                                DBSCANParameterWidget, PlaceholderParameterWidget)
 
+import matplotlib
+matplotlib.use('Qt5Agg') # 指定使用 Qt5 后端
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt # 仍然需要 plt 来获取颜色映射等
+import platform
+
+
+def get_chinese_font():
+    system = platform.system()
+    if system == "Windows":
+        # Windows 常见中文字体
+        font_path = "C:/Windows/Fonts/simhei.ttf"  # 黑体
+    elif system == "Darwin":
+        # macOS 使用 STHeiti 或 PingFang
+        font_path = "/System/Library/Fonts/STHeiti Light.ttc"
+
+    return font_manager.FontProperties(fname=font_path)
 
 class ClusteringPage(QWidget):
 
@@ -57,29 +78,33 @@ class ClusteringPage(QWidget):
         # 设置左侧 Splitter 的初始大小 (大致比例)
         left_splitter.setSizes([150, 80, 300, 10])
 
+        main_layout.addWidget(left_splitter)
+
+        self.setup_plot_area(main_layout)
+
         # --- 右侧面板 (占位符) ---
-        self.main_plot_area = QWidget()
-        self.main_plot_area.setObjectName("main_plot_area")
-        main_plot_layout = QVBoxLayout(self.main_plot_area)
-        main_plot_label = QLabel("主图")
-        main_plot_label.setAlignment(Qt.AlignCenter)
-        main_plot_layout.addWidget(main_plot_label)
-        # 基本样式
-        self.main_plot_area.setStyleSheet('''
-                    QWidget#main_plot_area {
-                        background-color: #e0e0e0;
-                        border: 1px solid #999999;
-                    }
-                     QLabel { font-size: 20px; color: #666; }
-                ''')
+        # self.main_plot_area = QWidget()
+        # self.main_plot_area.setObjectName("main_plot_area")
+        # main_plot_layout = QVBoxLayout(self.main_plot_area)
+        # main_plot_label = QLabel("主图")
+        # main_plot_label.setAlignment(Qt.AlignCenter)
+        # main_plot_layout.addWidget(main_plot_label)
+        # # 基本样式
+        # self.main_plot_area.setStyleSheet('''
+        #             QWidget#main_plot_area {
+        #                 background-color: #e0e0e0;
+        #                 border: 1px solid #999999;
+        #             }
+        #              QLabel { font-size: 20px; color: #666; }
+        #         ''')
 
         # --- 组合主布局 ---
-        main_layout.addWidget(left_splitter)
-        main_layout.addWidget(self.main_plot_area)
+        # main_layout.addWidget(left_splitter)
+        # main_layout.addWidget(self.main_plot_area)
 
         # 设置主布局拉伸因子 (右侧更宽)
         main_layout.setStretchFactor(left_splitter, 1)
-        main_layout.setStretchFactor(self.main_plot_area, 3)
+        main_layout.setStretchFactor(self.main_plot_area, 5)
 
         # --- 连接信号 ---
         # 连接下拉列表的信号到一个简单的处理函数
@@ -240,6 +265,110 @@ class ClusteringPage(QWidget):
                 ''')
         parent_splitter.addWidget(self.parameter_settings_area)
 
+    def setup_plot_area(self, parent_layout: QHBoxLayout):
+        """设置主绘图区域，嵌入 Matplotlib 画布"""
+        self.main_plot_area = QWidget()
+        self.main_plot_area.setObjectName("main_plot_area")
+        plot_layout = QVBoxLayout(self.main_plot_area)  # 绘图区的垂直布局
+
+        # 1. 创建 Matplotlib Figure 和 Canvas
+        #    我们不使用 plt.figure()，而是手动创建 Figure 对象
+        self.figure = Figure(figsize=(5, 4), dpi=100)  # 创建 Figure
+        self.canvas = FigureCanvas(self.figure)  # 创建 Canvas，并将 Figure 传入
+        plot_layout.addWidget(self.canvas)  # 将 Canvas 添加到布局
+
+        # 2. 添加 Matplotlib 导航工具栏
+        # self.toolbar = NavigationToolbar(self.canvas, self)  # 创建工具栏
+        # plot_layout.addWidget(self.toolbar)  # 将工具栏添加到布局
+
+        # 设置绘图区样式 (主要是容器的)
+        self.main_plot_area.setStyleSheet('''
+             QWidget#main_plot_area {
+                 /* background-color: #e0e0e0; */ /* 背景现在由画布决定 */
+                 border: 1px solid #999999;
+             }
+         ''')
+        parent_layout.addWidget(self.main_plot_area)  # 将包含画布的容器添加到主布局
+
+    # --- 修改 update_plot 方法 ---
+    def update_plot(self, first_n_points, valid_peaks, labels, ylabel="Y Axis"):
+        """
+        更新嵌入的 Matplotlib 画布以显示聚类结果。
+        :param first_n_points: 原始信号数据 (一维数组或列表)
+        :param valid_peaks: 检测到的峰值的索引 (一维数组或列表)
+        :param labels: K-Means 返回的聚类标签 (与 valid_peaks 对应)
+        :param ylabel: Y轴的标签文本
+        """
+        print("准备更新嵌入的 Matplotlib 绘图区域...")
+        if labels is None or len(valid_peaks) != len(labels):
+            print("错误：标签数据无效或与峰值数量不匹配。")
+            # 可以清除画布或显示错误信息
+            self.figure.clear()
+            ax = self.figure.add_subplot(111)
+            ax.text(0.5, 0.5, '无效的聚类结果', horizontalalignment='center', verticalalignment='center')
+            self.canvas.draw()
+            return
+
+        try:
+            # 1. 清除旧的图形
+            self.figure.clear()
+
+            # 2. 添加一个新的子图 (Axes)
+            ax = self.figure.add_subplot(111)
+
+            # 3. 绘制原始信号
+            ax.plot(first_n_points, label='信号', alpha=0.6, color='blue')  # 给原始信号一个固定颜色
+
+            # 4. 确定类别数量和颜色映射
+            unique_labels = np.unique(labels)  # 获取所有唯一的类别标签
+            n_clusters = len(unique_labels)
+            # 使用 Matplotlib 的颜色映射来自动获取足够多的颜色
+            # 'tab10', 'tab20', 'viridis', 'plasma' 等都是不错的选择
+            # get_cmap 需要类别数，确保至少为 1
+            cmap = plt.cm.get_cmap('tab10', max(1, n_clusters))
+
+            # 5. 按类别绘制峰值点
+            plotted_labels = set()  # 用于跟踪哪些类别的图例已经添加
+            for i in range(len(valid_peaks)):
+                peak_index = valid_peaks[i]
+                label = labels[i]
+                color = cmap(label % cmap.N)  # 使用模运算确保颜色索引在范围内 (虽然 get_cmap 通常处理得很好)
+
+                # 为每个类别只添加一次图例标签
+                label_text = f'类别 {label}'
+                if label not in plotted_labels:
+                    ax.plot(peak_index, first_n_points[peak_index], 'o',
+                            color=color, label=label_text)
+                    plotted_labels.add(label)
+                else:
+                    # 后续同类别的点不再添加图例标签
+                    ax.plot(peak_index, first_n_points[peak_index], 'o', color=color)
+
+            # 6. 设置图形属性
+            ax.set_title('K-Means 聚类分类的峰值')
+            ax.set_xlabel("时间点 (索引)")  # 或者根据你的数据是秒还是索引
+            ax.set_ylabel(ylabel if ylabel else "幅值")  # 使用传入的 Y 轴标签
+
+            # 7. 添加图例
+            ax.legend()
+
+            # 8. 调整布局防止标签重叠
+            self.figure.tight_layout()
+
+            # 9. !!! 关键：刷新 Canvas !!!
+            self.canvas.draw()
+            print("Matplotlib 画布已更新。")
+
+        except Exception as e:
+            print(f"更新绘图时出错: {e}")
+            import traceback
+            traceback.print_exc()
+            # 可以在画布上显示错误信息
+            self.figure.clear()
+            ax = self.figure.add_subplot(111)
+            ax.text(0.5, 0.5, f'绘图错误:\n{e}', horizontalalignment='center', verticalalignment='center', color='red')
+            self.canvas.draw()
+
     def on_function_changed(self, index):
         """下拉列表选项改变时的处理函数 (简单示例)"""
         selected_text = self.function_selector.itemText(index)
@@ -319,7 +448,7 @@ class ClusteringPage(QWidget):
                 # 假设你有 Algorithms.run_kmeans(data, params)
                 from algorithms import Algorithms  # 确保导入
                 print("调用 KMeans 算法...")
-                self.results = Algorithms.run_kmeans(path_to_process, data_to_process, parameters)
+                self.signal_for_plot,self.peaks_for_plot,self.results = Algorithms.run_kmeans(path_to_process, data_to_process, parameters)
 
             elif selected_algorithm_name == "DBSCAN":
                 # 调用你的 DBSCAN 算法实现
@@ -340,13 +469,24 @@ class ClusteringPage(QWidget):
 
             # 5. 处理和显示结果
             if self.results is not None:
-                print(
-                    f"算法执行成功！结果预览（前10个）: {self.results[:10] if isinstance(self.results, (list, np.ndarray)) else self.results}")
+                print(f"算法执行成功！结果预览（前10个）: {self.results[:10] if isinstance(self.results, (list, np.ndarray)) else self.results}")
                 # 在这里更新你的主图区域 (self.main_plot_area) 来显示聚类结果
-
-                self.update_plot(data_to_process, self.results)  # 调用一个专门的绘图函数
+                self.update_plot(self.signal_for_plot, self.peaks_for_plot, self.results, "电流/NA")
+                # self.update_plot(data_to_process, self.results)  # 调用一个专门的绘图函数
+            elif isinstance(self.results, str):  # 处理 "功能 3" 等简单结果
+                print(self.results)
+                # 可以清除或更新绘图区显示文字信息
+                self.figure.clear()
+                ax = self.figure.add_subplot(111)
+                ax.text(0.5, 0.5, self.results, horizontalalignment='center', verticalalignment='center')
+                self.canvas.draw()
             else:
-                print("算法执行完成，但没有返回明确的结果。")
+                print("算法执行完成，但没有返回有效的聚类标签。")
+                # 可以清除或更新绘图区显示提示
+                self.figure.clear()
+                ax = self.figure.add_subplot(111)
+                ax.text(0.5, 0.5, '算法未返回有效结果', horizontalalignment='center', verticalalignment='center')
+                self.canvas.draw()
 
 
         except ImportError:
