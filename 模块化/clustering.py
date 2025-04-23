@@ -8,10 +8,12 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from parameter_widgets import (BaseParameterWidget, KMeansParameterWidget,
                                DBSCANParameterWidget, PlaceholderParameterWidget)
 
+
 class ClusteringPage(QWidget):
 
     def __init__(self, data_manager, parent=None):
         super().__init__(parent)
+        self.results = None
         self.data_manager = data_manager
 
         self.param_widgets = {}  # 用于存储参数控件实例的字典
@@ -43,14 +45,17 @@ class ClusteringPage(QWidget):
         self.setup_data_list_area(left_splitter)
 
         # 2. 下拉列表切换区
-        self.setup_dropdown_area(left_splitter) # 封装下拉列表设置
+        self.setup_dropdown_area(left_splitter)  # 封装下拉列表设置
 
         # 3. 参数设置区 (现在包含 QStackedWidget)
-        self.setup_parameter_area(left_splitter) # 封装参数区设置
+        self.setup_parameter_area(left_splitter)  # 封装参数区设置
 
+        self.button = QPushButton("运行聚类")
+        self.button.clicked.connect(self.run_selected_algorithm)
+        left_splitter.addWidget(self.button)
 
         # 设置左侧 Splitter 的初始大小 (大致比例)
-        left_splitter.setSizes([150, 80, 300])
+        left_splitter.setSizes([150, 80, 300, 10])
 
         # --- 右侧面板 (占位符) ---
         self.main_plot_area = QWidget()
@@ -133,7 +138,6 @@ class ClusteringPage(QWidget):
 
         parent_splitter.addWidget(self.data_load_area)
 
-
     def update_submission_list(self):
         """
         刷新 QListWidget 列表，使其显示 DataManager 中当前所有 submission 的 'name'。
@@ -160,7 +164,6 @@ class ClusteringPage(QWidget):
             print("UI: DataManager 中没有 submission 名称可供显示。")
 
         print("UI: 列表更新完成。")
-
 
     def setup_dropdown_area(self, parent_splitter: QSplitter):
         # 2. 下拉列表切换区
@@ -208,7 +211,6 @@ class ClusteringPage(QWidget):
         self.dropdown_switch_area.setFixedHeight(self.dropdown_switch_area.sizeHint().height() + 5)  # Add padding
         parent_splitter.addWidget(self.dropdown_switch_area)
 
-
     def setup_parameter_area(self, parent_splitter: QSplitter):
         # 3. 参数设置区 (占位符)
         self.parameter_settings_area = QWidget()
@@ -217,14 +219,14 @@ class ClusteringPage(QWidget):
         parameter_settings_layout.setContentsMargins(5, 5, 5, 5)
         parameter_settings_layout.setSpacing(0)
 
-        self.parameter_stack = QStackedWidget() # 创建 Stacked Widget
+        self.parameter_stack = QStackedWidget()  # 创建 Stacked Widget
         parameter_settings_layout.addWidget(self.parameter_stack)
 
         # 实例化每个参数控件并添加到 Stacked Widget 和字典中
         for name, WidgetClass in self.algorithm_map.items():
             widget_instance = WidgetClass()
             self.parameter_stack.addWidget(widget_instance)
-            self.param_widgets[name] = widget_instance # 存储实例引用
+            self.param_widgets[name] = widget_instance  # 存储实例引用
             print(f"添加参数页面: {name} -> {WidgetClass.__name__}")
 
         # 基本样式
@@ -263,8 +265,7 @@ class ClusteringPage(QWidget):
                 return None
         return None  # 如果当前页面不是参数控件
 
-
-    def run_selected_algorithm(self, QMessageBox=None):
+    def run_selected_algorithm(self):
         """示例：获取参数并准备运行算法"""
         # 1. 获取选中的算法名称
         selected_algorithm_name = self.function_selector.currentText()
@@ -287,11 +288,11 @@ class ClusteringPage(QWidget):
         # 3. 从 DataManager 获取用于聚类的数据
         # !!! 关键：你需要确定从哪个 submission 获取数据 !!!
         #    通常是基于 submission_list_widget 的当前选中项
+        from PyQt5.QtWidgets import QMessageBox
         current_item = self.submission_list_widget.currentItem()
         if not current_item:
             print("错误：请在'已提交的识别数据'中选择要进行聚类的数据。")
             # 使用 QMessageBox 提示用户
-            from PyQt5.QtWidgets import QMessageBox
             QMessageBox.warning(self, "缺少数据", "请在'已提交的识别数据'中选择要进行聚类的数据项。")
             return
 
@@ -300,7 +301,7 @@ class ClusteringPage(QWidget):
 
         # 调用 DataManager 的方法来获取与该名称对应的数据
         # !!! 你需要在 DataManager 中实现 get_data_by_name 方法 !!!
-        path_to_process,data_to_process = self.data_manager.get_data_by_name(selected_data_name)
+        path_to_process, data_to_process = self.data_manager.get_data_by_name(selected_data_name)
 
         if data_to_process is None:
             print(f"错误：无法从 DataManager 获取名为 '{selected_data_name}' 的数据。")
@@ -309,29 +310,28 @@ class ClusteringPage(QWidget):
             return
 
         # 假设 data_to_process 是一个适合聚类算法的格式，例如 numpy 数组
-        print(f"成功获取数据，形状: {getattr(data_to_process, 'shape', '未知')}") # 打印数据形状（如果是数组）
+        print(f"成功获取数据，{getattr(data_to_process, 'shape', '未知')}")  # 打印数据形状（如果是数组）
 
         # 4. 根据算法名称调用不同的算法逻辑
         try:
-            results = None
             if selected_algorithm_name == "K-Means":
                 # 调用你的 K-Means 算法实现
                 # 假设你有 Algorithms.run_kmeans(data, params)
-                from algorithms import Algorithms # 确保导入
-                print("调用 K-Means 算法...")
-                results = Algorithms.run_kmeans(data_to_process, parameters)
+                from algorithms import Algorithms  # 确保导入
+                print("调用 KMeans 算法...")
+                self.results = Algorithms.run_kmeans(path_to_process, data_to_process, parameters)
 
             elif selected_algorithm_name == "DBSCAN":
                 # 调用你的 DBSCAN 算法实现
                 # 假设你有 Algorithms.run_dbscan(data, params)
-                from algorithms import Algorithms # 确保导入
+                from algorithms import Algorithms  # 确保导入
                 print("调用 DBSCAN 算法...")
-                results = Algorithms.run_dbscan(data_to_process, parameters)
+                # self.results = Algorithms.run_dbscan(path_to_process,data_to_process, parameters)
 
             elif selected_algorithm_name == "功能 3":
                 print("功能 3 不需要执行复杂算法或尚未实现。")
                 # 可以直接进行一些简单操作或显示提示
-                results = "功能 3 执行完成" # 示例结果
+                self.results = "功能 3 执行完成"  # 示例结果
 
             else:
                 print(f"错误：未知的算法或未处理的算法分支: {selected_algorithm_name}")
@@ -339,25 +339,24 @@ class ClusteringPage(QWidget):
                 return
 
             # 5. 处理和显示结果
-            if results is not None:
-                print(f"算法执行成功！结果预览（前10个）: {results[:10] if isinstance(results, (list, np.ndarray)) else results}")
+            if self.results is not None:
+                print(
+                    f"算法执行成功！结果预览（前10个）: {self.results[:10] if isinstance(self.results, (list, np.ndarray)) else self.results}")
                 # 在这里更新你的主图区域 (self.main_plot_area) 来显示聚类结果
-                # 这部分通常涉及绘图逻辑，例如使用 Matplotlib 或 PyQtGraph
-                self.update_plot(data_to_process, results) # 调用一个专门的绘图函数
+
+                self.update_plot(data_to_process, self.results)  # 调用一个专门的绘图函数
             else:
                 print("算法执行完成，但没有返回明确的结果。")
 
 
         except ImportError:
-             print("错误：未能导入 algorithms 模块或其中包含的算法库（如 sklearn）。请确保已安装。")
-             QMessageBox.critical(self, "导入错误", "运行算法所需的库未能导入，请检查安装。")
+            print("错误：未能导入 algorithms 模块或其中包含的算法库（如 sklearn）。请确保已安装。")
+            QMessageBox.critical(self, "导入错误", "运行算法所需的库未能导入，请检查安装。")
         except Exception as e:
             # 捕获算法执行中可能出现的任何其他错误
             print(f"运行算法 '{selected_algorithm_name}' 时出错: {e}")
             import traceback
-            traceback.print_exc() # 打印详细的错误堆栈
+            traceback.print_exc()  # 打印详细的错误堆栈
             QMessageBox.critical(self, "算法错误", f"执行 '{selected_algorithm_name}' 时发生错误:\n{e}")
 
         print("--- 聚类算法运行结束 ---")
-
-

@@ -1,6 +1,6 @@
 # parameter_widgets.py
 from PyQt5.QtWidgets import (QWidget, QLabel, QSpinBox, QDoubleSpinBox,
-                             QSlider, QCheckBox, QGridLayout, QVBoxLayout, QSpacerItem, QSizePolicy)
+                             QSlider, QCheckBox, QGridLayout, QVBoxLayout, QSpacerItem, QSizePolicy, QPushButton)
 from PyQt5.QtCore import Qt, pyqtSignal
 
 # (可选) 创建一个基础类，定义通用接口
@@ -67,6 +67,8 @@ class KMeansParameterWidget(BaseParameterWidget):
         # 添加一个弹簧，将控件推到顶部
         spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
         layout.addItem(spacer, 4, 0, 1, 2) # 跨越两列
+
+
         """
         layout.addItem(item, row, column, rowSpan, columnSpan) 
         param:
