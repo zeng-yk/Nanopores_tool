@@ -305,7 +305,15 @@ class ClusteringPage(QWidget):
             # 可以清除画布或显示错误信息
             self.figure.clear()
             ax = self.figure.add_subplot(111)
-            ax.text(0.5, 0.5, '无效的聚类结果', horizontalalignment='center', verticalalignment='center')
+            ax.text(0.5, 0.5,
+                    '无效的聚类结果',
+                    horizontalalignment='center',
+                    verticalalignment='center',
+                    fontsize=14,
+                    fontweight='bold',
+                    color='red',
+                    fontproperties=get_chinese_font()
+                    )
             self.canvas.draw()
             return
 
@@ -320,13 +328,18 @@ class ClusteringPage(QWidget):
             ax.plot(first_n_points, label='信号', color='blue')  # 给原始信号一个固定颜色
 
             # 4. 确定类别数量和颜色映射
-            unique_labels = np.unique(labels)  # 获取所有唯一的类别标签
-            n_clusters = len(unique_labels)
+            # unique_labels = np.unique(labels)  # 获取所有唯一的类别标签
+            # n_clusters = len(unique_labels)
             # 使用 Matplotlib 的颜色映射来自动获取足够多的颜色
-            # 'tab10', 'tab20', 'viridis', 'plasma' 等都是不错的选择
+            # 'tab10', 'tab20', 'viridis', 'plasma'
             # get_cmap 需要类别数，确保至少为 1
-            cmap = plt.cm.get_cmap('tab20', max(1, n_clusters)+1)
+            # cmap = plt.cm.get_cmap('tab20', max(1, n_clusters)+1)
 
+            # 红、橙、黄、绿、天蓝、青、紫、粉、棕、金、青绿、紫蓝、银白、黑、淡黄(偏白)、橄榄、
+            custom_colors = ['#FF0000','#FFA500','#FFFF00','#008000',
+                             '#00BFFF','#00FFFF','#800080','#FFC0CB',
+                             '#A52A2A','#FFD700','#00FF7F','#7B68EE',
+                             '#C0C0C0','#000000','#FFF8DC','#808000']
             print("labels:", labels)
 
             # 5. 按类别绘制峰值点
@@ -334,7 +347,8 @@ class ClusteringPage(QWidget):
             for i in range(len(valid_peaks)):
                 peak_index = valid_peaks[i]
                 label = labels[i]
-                color = cmap(label % cmap.N)  # 使用模运算确保颜色索引在范围内 (虽然 get_cmap 通常处理得很好)
+                # color = cmap(label % cmap.N)  # 使用模运算确保颜色索引在范围内 (虽然 get_cmap 通常处理得很好)
+                color = custom_colors[label % len(custom_colors)]
 
                 # 为每个类别只添加一次图例标签
                 label_text = f'类别 {label}'
@@ -347,12 +361,14 @@ class ClusteringPage(QWidget):
                     ax.plot(peak_index, first_n_points[peak_index], 'o', color=color)
 
             # 6. 设置图形属性
-            ax.set_title('K-Means 聚类分类的峰值',fontproperties=get_chinese_font())
-            ax.set_xlabel("时间点 (索引)")  # 或者根据你的数据是秒还是索引
-            ax.set_ylabel(ylabel if ylabel else "幅值")  # 使用传入的 Y 轴标签
+            ax.set_title(f'{self.function_selector.currentText()} 聚类分类的结果',
+                         fontproperties=get_chinese_font())
+            ax.set_xlabel("时间点",fontproperties=get_chinese_font())  # 或者根据你的数据是秒还是索引
+            ax.set_ylabel(ylabel if ylabel else "幅值",fontproperties=get_chinese_font())  # 使用传入的 Y 轴标签
 
             # 7. 添加图例
-            ax.legend()
+            ax.legend(fontsize=12,
+                      prop=get_chinese_font())
 
             # 8. 调整布局防止标签重叠
             self.figure.tight_layout()
