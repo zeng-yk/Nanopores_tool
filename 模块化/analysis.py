@@ -5,7 +5,8 @@ import time
 import pyabf
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QListWidget, QPushButton, QFileDialog, QHBoxLayout, QListWidgetItem, \
-    QSplitter, QFormLayout, QSpinBox, QColorDialog, QLabel, QDoubleSpinBox, QCheckBox, QMessageBox, QInputDialog
+    QSplitter, QFormLayout, QSpinBox, QColorDialog, QLabel, QDoubleSpinBox, QCheckBox, QMessageBox, QInputDialog, \
+    QSizePolicy, QButtonGroup
 from PyQt5.QtCore import pyqtSignal, Qt, QTimer
 from matplotlib import font_manager
 
@@ -60,7 +61,9 @@ class AnalysisPage(QWidget):
         self.data_file_paths = []  # 存放路径
         self.ui()
 
-        self.flag = True
+        self.flag = True # 是否点击运行峰值检测
+        self.Positive = True
+
 
     def ui(self):
         main_layout = QHBoxLayout(self)  # 主窗口使用水平布局
@@ -123,6 +126,30 @@ class AnalysisPage(QWidget):
 
         form = QFormLayout()
 
+        # 复选框
+        self.Downsampling_checkbox = QCheckBox("性能模式")
+        self.Downsampling_checkbox.setChecked(True)  # 默认勾选
+
+        self.btn1 = QPushButton("波峰")
+        self.btn2 = QPushButton("波谷")
+        # 设置为可点击状态
+        self.btn1.setCheckable(True)
+        self.btn2.setCheckable(True)
+        # 创建互斥按钮组
+        self.group = QButtonGroup(self)
+        self.group.setExclusive(True)  # 设置互斥
+        self.group.addButton(self.btn1)
+        self.group.addButton(self.btn2)
+        # 初始样式
+        # self.update_button_style()
+        # 连接信号
+        self.btn1.clicked.connect(self.update_button_style)
+        self.btn2.clicked.connect(self.update_button_style)
+        Button_layout = QHBoxLayout()
+        Button_layout.addWidget(self.btn1)
+        Button_layout.addWidget(self.btn2)
+        # self.setLayout(Button_layout)
+
         # 添加各个参数
         self.height_widget, self.cb_height, self.spin_height = self.add_checkbox_spinbox("height", 100, checked=False)
         self.threshold_widget, self.cb_threshold, self.spin_threshold = self.add_checkbox_spinbox("threshold", 0.5,
@@ -133,20 +160,24 @@ class AnalysisPage(QWidget):
                                                                                                      decimals=True)
         self.width_widget, self.cb_width, self.spin_width = self.add_checkbox_spinbox("width", 3, checked=False)
 
-        form.addRow("Height:", self.height_widget)
-        form.addRow("Threshold:", self.threshold_widget)
-        form.addRow("Distance:", self.distance_widget)
-        form.addRow("Prominence:", self.prominence_widget)
-        form.addRow("Width:", self.width_widget)
+        form.addRow(self.add_label("Height:"), self.height_widget)
+        form.addRow(self.add_label("Threshold:"), self.threshold_widget)
+        form.addRow(self.add_label("Distance:"), self.distance_widget)
+        form.addRow(self.add_label("Prominence:"), self.prominence_widget)
+        form.addRow(self.add_label("Width:"), self.width_widget)
 
         self.color1_widget, self.btn_color1 = self.add_color_selector("#FF0000")
         self.color2_widget, self.btn_color2 = self.add_color_selector("#00FF00")
         self.color3_widget, self.btn_color3 = self.add_color_selector("#0000FF")
 
-        form.addRow("Color 1:", self.color1_widget)
-        form.addRow("Color 2:", self.color2_widget)
-        form.addRow("Color 3:", self.color3_widget)
+        form.addRow(self.add_label("Color 1:"), self.color1_widget)
+        form.addRow(self.add_label("Color 2:"), self.color2_widget)
+        form.addRow(self.add_label("Color 3:"), self.color3_widget)
 
+        form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+
+        function_1_layout.addWidget(self.Downsampling_checkbox)
+        function_1_layout.addLayout(Button_layout)
         function_1_layout.addLayout(form)
 
         self.apply_range_button = QPushButton("应用参数")
@@ -264,9 +295,29 @@ class AnalysisPage(QWidget):
         main_layout.addWidget(right_section_widget)
 
     @staticmethod
+    def add_label(name):
+        label = QLabel(name)
+        label.setFixedWidth(100)
+        return label
+
+    def update_button_style(self):
+        # 设置被选中的按钮为蓝色，未选中为默认
+        for btn in [self.btn1, self.btn2]:
+            if btn.isChecked():
+                if self.btn1.isChecked():
+                    self.Positive = True
+                else:
+                    self.Positive = False
+                btn.setStyleSheet("background-color: gray")
+            else:
+                btn.setStyleSheet("")
+
+    @staticmethod
     # ====== 第一组：可选参数（带复选框）======
     def add_checkbox_spinbox(label_text, default_value=1.0, decimals=False, checked=True):
         container = QWidget()
+        container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
 
@@ -283,6 +334,11 @@ class AnalysisPage(QWidget):
             spinbox = QSpinBox()
             spinbox.setRange(0, 1_000_000)  # 设置范围
         spinbox.setValue(default_value)
+
+        # 💡 让 SpinBox 左对齐 & 可拉伸
+        spinbox.setAlignment(Qt.AlignLeft)
+        spinbox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        spinbox.setMinimumWidth(80)
 
         # 自定义值记录器，None 表示未启用
         spinbox.logical_value = default_value if checked else None
@@ -306,6 +362,8 @@ class AnalysisPage(QWidget):
 
         layout.addWidget(checkbox)
         layout.addWidget(spinbox)
+
+        layout.setStretch(1, 1)  # SpinBox 铺满右侧
 
         return container, checkbox, spinbox
 
@@ -486,7 +544,12 @@ class AnalysisPage(QWidget):
 
     def data_peak(self):
         # 取反信号
-        inverted_signal = -self.full_y
+        if self.Positive:
+            print("波峰检测")
+            inverted_signal = self.full_y
+        else:
+            print("波谷检测")
+            inverted_signal = -self.full_y
         # print(inverted_signal)
         # print(self.spin_height.logical_value)
         # print(self.spin_threshold.logical_value)
@@ -515,7 +578,41 @@ class AnalysisPage(QWidget):
 
         self.ax.clear()
 
-        self.ax.plot(self.full_x, self.full_y, label="Original Signal", color="blue")
+        if self.Downsampling_checkbox.isChecked():
+            print("性能模式已开启")
+            # --- 使用峰值保持降采样 ---
+            thumbnail_target_points = 4000  # 采样点目标值
+            data_length = len(self.full_y)
+            thumbnail_sampling_step = max(1, data_length // thumbnail_target_points)
+            num_intervals = data_length // thumbnail_sampling_step
+
+            x_display = np.zeros(num_intervals * 2)
+            y_display = np.zeros(num_intervals * 2)
+
+            valid_points = 0
+            for i in range(num_intervals):
+                start = i * thumbnail_sampling_step
+                end = min(start + thumbnail_sampling_step, data_length)
+                if start >= end:
+                    continue
+                y_interval = self.full_y[start:end]
+                interval_min = np.nanmin(y_interval)
+                interval_max = np.nanmax(y_interval)
+
+                x_coord = self.full_x[start]
+                idx = valid_points * 2
+                x_display[idx] = x_coord
+                y_display[idx] = interval_min
+                x_display[idx + 1] = x_coord
+                y_display[idx + 1] = interval_max
+                valid_points += 1
+
+            x_display = x_display[:valid_points * 2]
+            y_display = y_display[:valid_points * 2]
+
+            self.ax.plot(x_display, y_display, label="Original Signal", color="blue")
+        else:
+            self.ax.plot(self.full_x, self.full_y, label="Original Signal", color="blue")
 
         if self.peaks is not None:
             peak_times = self.full_x[self.peaks]
@@ -523,7 +620,6 @@ class AnalysisPage(QWidget):
             self.ax.plot(peak_times, peak_values, "ro", label="Peaks")
 
         self.ax.set_title("信号与峰值", fontproperties=get_chinese_font())
-        # self.ax.figure.suptitle("主图区域", fontsize=14)
         self.ax.legend()
         self.canvas.draw()
 
