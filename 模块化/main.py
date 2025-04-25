@@ -270,7 +270,7 @@ class DataViewer(QMainWindow):
         internal_splitter = QSplitter(Qt.Horizontal)
         internal_splitter.addWidget(left_splitter)
         internal_splitter.addWidget(center_widget)
-        internal_splitter.setSizes([300, 1200])
+        internal_splitter.setSizes([480, 1920])
 
 
         # 区域选择控件

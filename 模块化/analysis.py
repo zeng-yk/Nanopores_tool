@@ -211,7 +211,7 @@ class AnalysisPage(QWidget):
 
         left_splitter.addWidget(self.parameter_settings)
 
-        left_splitter.setSizes([300, 500])  # Example sizes
+        left_splitter.setSizes([700, 300])  # Example sizes
 
         # 右侧的图展示区域
         right_section_widget = QWidget()

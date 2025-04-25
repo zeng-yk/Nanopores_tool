@@ -110,8 +110,8 @@ class ClusteringPage(QWidget):
         # main_layout.addWidget(self.main_plot_area)
 
         # 设置主布局拉伸因子 (右侧更宽)
-        main_layout.setStretchFactor(left_splitter, 1)
-        main_layout.setStretchFactor(self.scroll_area, 5)
+        main_layout.setStretchFactor(left_splitter, 2)
+        main_layout.setStretchFactor(self.scroll_area, 8)
 
         # --- 连接信号 ---
         # 连接下拉列表的信号到一个简单的处理函数
