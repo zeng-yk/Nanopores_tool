@@ -29,6 +29,7 @@ def get_chinese_font():
 
     return font_manager.FontProperties(fname=font_path)
 
+
 class AnalysisPage(QWidget):
     request_refresh = pyqtSignal()
 
@@ -46,6 +47,9 @@ class AnalysisPage(QWidget):
 
         self.index = 0
         self.peaks = None
+        self.prominences = None
+        self.height = None
+        self.width = None
         self.peak_properties = None
 
         self.data = None
@@ -259,7 +263,6 @@ class AnalysisPage(QWidget):
         main_layout.addWidget(left_splitter)
         main_layout.addWidget(right_section_widget)
 
-
     @staticmethod
     # ====== 第一组：可选参数（带复选框）======
     def add_checkbox_spinbox(label_text, default_value=1.0, decimals=False, checked=True):
@@ -333,7 +336,8 @@ class AnalysisPage(QWidget):
         return container, button
 
     def add_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "选择数据文件", "", "数据文件 (*.csv *.txt *.abf);;所有文件 (*)")
+        file_path, _ = QFileDialog.getOpenFileName(self, "选择数据文件", "",
+                                                   "数据文件 (*.csv *.txt *.abf);;所有文件 (*)")
         if file_path:
             self.data_manager.add_file(file_path)
             # self.file_list.addItem(file_path)
@@ -380,7 +384,6 @@ class AnalysisPage(QWidget):
         if self.load_start_time is not None:
             elapsed = time.time() - self.load_start_time
             self.load_time_label.setText(f"加载时间：{elapsed:.2f} 秒")
-
 
     def load_selected_file(self, item):
         self.index = self.file_list.row(item)
@@ -470,7 +473,7 @@ class AnalysisPage(QWidget):
         self.load_timer.stop()
         self.flag = True
 
-        self.peaks = self.worker.peaks  # 从 worker 拿回来
+        self.peaks, self.prominences, self.height, self.width = self.worker.peaks  # 从 worker 拿回来
 
         self.plot_main()
         self.current_peak_index = 0
@@ -480,7 +483,6 @@ class AnalysisPage(QWidget):
         self.load_time_label.setText(f"加载时间：{final_time:.2f} 秒")
         print(f"检测到 {len(self.peaks)} 个峰值")
         print(f"数据加载完成，耗时: {final_time:.2f} 秒")
-
 
     def data_peak(self):
         # 取反信号
@@ -497,8 +499,15 @@ class AnalysisPage(QWidget):
                                        distance=self.spin_distance.logical_value,
                                        prominence=self.spin_prominence.logical_value,
                                        width=self.spin_width.logical_value)
-        # prominences = peak_prominences(inverted_signal, peaks)[0]
-        return peaks
+        prominences = peak_prominences(inverted_signal, peaks)[0]
+        width_full = peak_widths(inverted_signal, peaks, rel_height=0.9)
+        results_half = peak_widths(inverted_signal, peaks, rel_height=0.5)
+
+        # 1.3 计算峰高 (负峰的绝对值)
+        heights = np.abs(self.full_y[peaks])
+        print(f"计算了 {len(heights)} 个峰的高度。")
+
+        return peaks, prominences, heights, width_full
 
     def plot_main(self):
         if self.full_x is None or self.full_y is None:
@@ -513,12 +522,10 @@ class AnalysisPage(QWidget):
             peak_values = self.full_y[self.peaks]
             self.ax.plot(peak_times, peak_values, "ro", label="Peaks")
 
-
-        self.ax.set_title("信号与峰值",fontproperties=get_chinese_font())
+        self.ax.set_title("信号与峰值", fontproperties=get_chinese_font())
         # self.ax.figure.suptitle("主图区域", fontsize=14)
         self.ax.legend()
         self.canvas.draw()
-
 
     def plot_single_peak(self):
         # print("绘制单峰型图")
@@ -537,8 +544,8 @@ class AnalysisPage(QWidget):
         inverted = -y
 
         # 半高宽计算
-        results_full = peak_widths(inverted, [local_peak], rel_height=0.9)
-        results_half = peak_widths(inverted, [local_peak], rel_height=0.5)
+        self.results_full = peak_widths(inverted, [local_peak], rel_height=0.9)
+        self.results_half = peak_widths(inverted, [local_peak], rel_height=0.5)
 
         # 删除旧图
         if hasattr(self, 'plot1_canvas'):
@@ -551,13 +558,14 @@ class AnalysisPage(QWidget):
         ax.plot(x[local_peak], y[local_peak], "ro", label="Valley")
 
         # 半高宽线
-        left_ips = int(results_full[2][0])
-        right_ips = int(results_full[3][0])
-        height = -results_full[1][0]
+        left_ips = int(self.results_full[2][0])
+        right_ips = int(self.results_full[3][0])
+        height = -self.results_full[1][0]
         ax.hlines(height, x[left_ips], x[right_ips], color="green", linewidth=2, label="Width")
 
-        half_height = -results_half[1][0]
-        ax.hlines(half_height, x[results_half[2][0].astype(int)], x[results_half[3][0].astype(int)], color="yellow",
+        half_height = -self.results_half[1][0]
+        ax.hlines(half_height, x[self.results_half[2][0].astype(int)], x[self.results_half[3][0].astype(int)],
+                  color="yellow",
                   linewidth=2, label="Half_width")
 
         ax.set_title(f"Valley {self.current_peak_index + 1}/{len(self.peaks)}")
@@ -599,14 +607,17 @@ class AnalysisPage(QWidget):
             submission = {
                 "name": name.strip(),
                 "path": self.filepath,
-                "data": self.peaks
+                "peaks": self.peaks,
+                "full_width": self.width,
+                # "half_width": self.results_half,
+                # "height": self.results_half,
+                "prominences": self.prominences,
             }
             self.data_manager.add_peaks(submission)
             QMessageBox.information(self, "提交成功", f"识别结果已保存为“{name}”。")
 
         elif ok:
             QMessageBox.warning(self, "提示", "名称不能为空，请重新提交。")
-
 
     def show_prev_peak(self):
         if self.current_peak_index > 0:

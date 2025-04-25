@@ -11,12 +11,12 @@ class DataManager(QObject):
         self.data_file_paths = []
 
     def add_file(self, path):
-        print("传入文件"+ format(path))
+        print("传入文件" + format(path))
         if path not in self.data_file_paths:
             self.data_file_paths.append(path)
 
     def remove_file(self, path):
-        print("移除文件"+ format(path))
+        print("移除文件" + format(path))
         if path in self.data_file_paths:
             self.data_file_paths.remove(path)
 
@@ -24,7 +24,7 @@ class DataManager(QObject):
         return self.data_file_paths
 
     def add_peaks(self, submission: dict):
-        print(f"成功传入"+ format(submission))
+        print(f"成功传入" + format(submission))
         self.submissions.append(submission)
         self.submissions_changed_signal.emit()  # <--- 在数据变化后发射信号
 
@@ -53,10 +53,15 @@ class DataManager(QObject):
                 # 假设你的 submission 字典中有一个键（例如 'processed_data' 或 'features'）
                 # 存储着可以直接用于聚类的数值型数据 (如 numpy array)
                 path = submission.get('path')
-                data = submission.get('data')  # <-- 数据键名
-                if data is not None:
-                    print(f"DataManager: 找到数据，类型: {type(data)}")
-                    return path,data
+                peaks = submission.get('peaks')  # <-- 数据键名
+                full_width = submission.get('full_width')
+                # half_width = submission.get('half_width')
+                prominences = submission.get('prominences')
+#                 height = submission.get('height')
+                if peaks is not None:
+                    print(f"DataManager: 找到数据，类型: {type(peaks)}")
+                    # return path, peaks, full_width, half_width, prominences,height
+                    return path, peaks, full_width, prominences
                 else:
                     print(f"DataManager: 找到名为 '{name}' 的 submission，但缺少 'data' 键或其值为 None。")
                     return None
