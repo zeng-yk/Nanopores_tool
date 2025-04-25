@@ -61,7 +61,8 @@ class AnalysisPage(QWidget):
         self.data_file_paths = []  # 存放路径
         self.ui()
 
-        self.flag = True # 是否点击运行峰值检测
+        self.flag = True # 是否有运行峰值检测
+        self.select_flag = False
         self.Positive = True
 
 
@@ -444,6 +445,7 @@ class AnalysisPage(QWidget):
             self.load_time_label.setText(f"加载时间：{elapsed:.2f} 秒")
 
     def load_selected_file(self, item):
+        self.select_flag = True
         self.index = self.file_list.row(item)
         self.filepath = self.data_file_paths[self.index]
         print(self.filepath)
@@ -506,7 +508,7 @@ class AnalysisPage(QWidget):
             self.show_error("数据加载/处理失败", f"处理文件 '{os.path.basename(filepath)}' 时出错:\n{e}")
 
     def apply_data_range_to_view(self):
-        if self.flag:
+        if self.flag & self.select_flag:
             self.flag = False
             self.load_start_time = time.time()
             self.load_timer.start(50)  # 每 50 毫秒刷新一次标签

@@ -82,8 +82,12 @@ class ClusteringPage(QWidget):
         self.button.clicked.connect(self.run_selected_algorithm)
         left_splitter.addWidget(self.button)
 
+        self.save_button = QPushButton("保存结果")
+        # self.save_button.clicked.connect(self.run_selected_algorithm)
+        left_splitter.addWidget(self.save_button)
+
         # 设置左侧 Splitter 的初始大小 (大致比例)
-        left_splitter.setSizes([150, 80, 300, 10])
+        left_splitter.setSizes([150, 80, 300, 10, 10])
 
         main_layout.addWidget(left_splitter)
 
@@ -174,7 +178,6 @@ class ClusteringPage(QWidget):
         """
         刷新 QListWidget 列表，使其显示 DataManager 中当前所有 submission 的 'name'。
         """
-        print(f"Update thread: {threading.get_ident()}")
         print("UI: 开始更新 submission 名称列表...")
 
         # 1. 从 DataManager 获取最新的 'name' 列表
@@ -333,28 +336,29 @@ class ClusteringPage(QWidget):
 
             # --- 2. 绘制每个类别的平均波形图 ---
             # 需要一个窗口大小来提取峰值周围的波形
-            waveform_window = 50  # 示例窗口大小 (峰值左右各 50 个点)，需要根据实际情况调整
+            waveform_window = 100  # 示例窗口大小 (峰值左右各 50 个点)，需要根据实际情况调整
             self._plot_average_waveforms(signal_data, peak_indices, cluster_labels, unique_labels, waveform_window)
 
-            # --- 3. 绘制特征散点图 (如果提供了特征数据) ---
-            if peak_features is not None and peak_features.shape[0] == len(peak_indices) and peak_features.shape[
-                1] >= 2:
-                # 假设使用前两个特征进行绘图
-                feature_x_index = 0
-                feature_y_index = 1
-                feature_x_name = "特征 1 (高度)"  # 替换为实际名称
-                feature_y_name = "特征 2 (宽度)"  # 替换为实际名称
-                self._plot_feature_scatter(peak_features, cluster_labels, unique_labels,
-                                           feature_x_index, feature_y_index,
-                                           feature_x_name, feature_y_name)
-            else:
-                print("跳过特征散点图：未提供足够的特征数据。")
+            # # --- 3. 绘制特征散点图 (如果提供了特征数据) ---
+            # if peak_features is not None and peak_features.shape[0] == len(peak_indices) and peak_features.shape[
+            #     1] >= 2:
+            #     # 假设使用前两个特征进行绘图
+            #     feature_x_index = 0
+            #     feature_y_index = 1
+            #     feature_x_name = "特征 1 (高度)"  # 替换为实际名称
+            #     feature_y_name = "特征 2 (宽度)"  # 替换为实际名称
+            #     self._plot_feature_scatter(peak_features, cluster_labels, unique_labels,
+            #                                feature_x_index, feature_y_index,
+            #                                feature_x_name, feature_y_name)
+            # else:
+            #     print("跳过特征散点图：未提供足够的特征数据。")
 
             # --- 4. 绘制特征箱式图 (如果提供了特征数据) ---
             if peak_features is not None and peak_features.shape[0] == len(peak_indices):
                 # 为每个特征绘制箱式图
                 num_features = peak_features.shape[1]
-                feature_names = [f"特征 {i + 1}" for i in range(num_features)]  # 使用通用名称，最好替换为实际名称
+                # feature_names = [f"特征 {i + 1}" for i in range(num_features)]  # 使用通用名称，最好替换为实际名称
+                feature_names = ['heights', 'widths', 'prominences']
                 self._plot_feature_boxplots(peak_features, cluster_labels, unique_labels, feature_names)
             else:
                 print("跳过特征箱式图：未提供特征数据。")
@@ -413,41 +417,107 @@ class ClusteringPage(QWidget):
     def _plot_main_signal(self, signal_data, peak_indices, cluster_labels, ylabel):
         """绘制主信号和聚类峰值"""
         print("绘制主信号图...")
-        figure, canvas = self._create_figure_canvas(fixed_height=400)  # 主图高一点
+        figure, canvas = self._create_figure_canvas(fixed_height=600)  # 主图高一点
+        # ax = figure.add_subplot(111)
+        #
+        # # 绘制原始信号
+        # ax.plot(signal_data, label='信号', color='blue', zorder=1)  # 降低信号线的 zorder
+        #
+        # # 准备颜色和标签
+        # unique_labels = sorted(list(np.unique(cluster_labels)))
+        # colors = self._get_cluster_colors(len(unique_labels))
+        # label_map = {label: i for i, label in enumerate(unique_labels)}  # 将原始标签映射到颜色索引
+        #
+        # plotted_labels = set()
+        # for i in range(len(peak_indices)):
+        #     peak_idx = peak_indices[i]
+        #     label = cluster_labels[i]
+        #     color_idx = label_map[label]
+        #     color = colors[color_idx]
+        #
+        #     label_text = f'类别 {label}'
+        #     if label not in plotted_labels:
+        #         ax.plot(peak_idx, signal_data[peak_idx], 'o', markersize=6,
+        #                 color=color, label=label_text, zorder=2)
+        #         plotted_labels.add(label)
+        #     else:
+        #         ax.plot(peak_idx, signal_data[peak_idx], 'o', markersize=6, color=color, zorder=2)
+        #
+        # ax.set_title(f'{self.function_selector.currentText()} 聚类结果 - 主信号图',
+        #              fontproperties=get_chinese_font())
+        # ax.set_xlabel("时间点", fontproperties=get_chinese_font())
+        # ax.set_ylabel(ylabel if ylabel else "幅值", fontproperties=get_chinese_font())
+        # ax.legend(prop=get_chinese_font())
+        #
+        # ax.grid(True, linestyle='--', alpha=0.6)  # 添加网格线
+        #
+        # figure.tight_layout()  # 8. 调整布局防止标签重叠
+        # canvas.draw()
+        # print("主图已绘制。")
+        # self._add_plot_to_layout(canvas)
+
+        # 降采样参数
+        target_points = 5000
+        data_length = len(signal_data)
+        sampling_step = max(1, data_length // target_points)
+        num_intervals = data_length // sampling_step
+
+        # 准备降采样数组
+        x_display = np.zeros(num_intervals * 2)
+        y_display = np.zeros(num_intervals * 2)
+
+        valid_points = 0
+        for i in range(num_intervals):
+            start = i * sampling_step
+            end = min(start + sampling_step, data_length)
+            if start >= end:
+                continue
+            segment = signal_data[start:end]
+            x_val = start  # 以起始下标为 x 轴
+            y_min = np.nanmin(segment)
+            y_max = np.nanmax(segment)
+
+            idx = valid_points * 2
+            x_display[idx] = x_val
+            y_display[idx] = y_min
+            x_display[idx + 1] = x_val
+            y_display[idx + 1] = y_max
+            valid_points += 1
+
+        x_display = x_display[:valid_points * 2]
+        y_display = y_display[:valid_points * 2]
+
+        # 创建绘图对象
         ax = figure.add_subplot(111)
 
-        # 绘制原始信号
-        ax.plot(signal_data, label='信号', color='blue', zorder=1)  # 降低信号线的 zorder
+        # 绘制降采样后的信号
+        ax.plot(x_display, y_display, label='原始信号', color='blue', zorder=1)
 
-        # 准备颜色和标签
+        # 绘制聚类点
         unique_labels = sorted(list(np.unique(cluster_labels)))
         colors = self._get_cluster_colors(len(unique_labels))
-        label_map = {label: i for i, label in enumerate(unique_labels)}  # 将原始标签映射到颜色索引
-
+        label_map = {label: i for i, label in enumerate(unique_labels)}
         plotted_labels = set()
+
         for i in range(len(peak_indices)):
             peak_idx = peak_indices[i]
             label = cluster_labels[i]
-            color_idx = label_map[label]
-            color = colors[color_idx]
-
+            color = colors[label_map[label]]
             label_text = f'类别 {label}'
             if label not in plotted_labels:
-                ax.plot(peak_idx, signal_data[peak_idx], 'o', markersize=6,
-                        color=color, label=label_text, zorder=2)
+                ax.plot(peak_idx, signal_data[peak_idx], 'o', markersize=6, color=color, label=label_text, zorder=2)
                 plotted_labels.add(label)
             else:
                 ax.plot(peak_idx, signal_data[peak_idx], 'o', markersize=6, color=color, zorder=2)
 
-        ax.set_title(f'{self.function_selector.currentText()} 聚类结果 - 主信号图',
-                     fontproperties=get_chinese_font())
+        # 设置标题、标签等
+        ax.set_title(f'{self.function_selector.currentText()} 聚类结果 - 主信号图', fontproperties=get_chinese_font())
         ax.set_xlabel("时间点", fontproperties=get_chinese_font())
         ax.set_ylabel(ylabel if ylabel else "幅值", fontproperties=get_chinese_font())
         ax.legend(prop=get_chinese_font())
+        ax.grid(True, linestyle='--', alpha=0.6)
 
-        ax.grid(True, linestyle='--', alpha=0.6) # 添加网格线
-
-        figure.tight_layout() # 8. 调整布局防止标签重叠
+        figure.tight_layout()
         canvas.draw()
         print("主图已绘制。")
         self._add_plot_to_layout(canvas)
@@ -511,8 +581,8 @@ class ClusteringPage(QWidget):
                             color=color, alpha=0.2, label='±1 标准差')
 
             ax.set_title(f'类别 {label} - 平均峰值波形', fontproperties=get_chinese_font())
-            ax.set_xlabel("相对于峰值点的时间", fontproperties=get_chinese_font())
-            ax.set_ylabel("幅值", fontproperties=get_chinese_font())
+            ax.set_xlabel("时间", fontproperties=get_chinese_font())
+            ax.set_ylabel("电流", fontproperties=get_chinese_font())
             ax.legend(prop=get_chinese_font())
             ax.grid(True, linestyle='--', alpha=0.6)
             figure.tight_layout()
@@ -560,6 +630,8 @@ class ClusteringPage(QWidget):
 
             data_to_plot = []
             plot_labels = []
+            # plot_labels.append(f'Cluster {label}')
+
             box_colors = []  # 每个箱子的颜色
             label_map = {label: i for i, label in enumerate(unique_labels)}
 
@@ -583,8 +655,8 @@ class ClusteringPage(QWidget):
                 continue  # 跳到下一个特征
 
             # 创建箱式图
-            bp = ax.boxplot(data_to_plot, labels=plot_labels, patch_artist=True,  # patch_artist=True 允许填充颜色
-                            showfliers=False)  # showfliers=False 不显示异常值点，让图更清晰
+            bp = ax.boxplot(data_to_plot, patch_artist=True,  # patch_artist=True 允许填充颜色
+                            showfliers=False,)  # showfliers=False 不显示异常值点，让图更清晰
 
             # 为每个箱子设置颜色
             for patch, color in zip(bp['boxes'], box_colors):
@@ -597,7 +669,7 @@ class ClusteringPage(QWidget):
 
             ax.set_title(f'特征 "{feature_names[feat_idx]}" 按类别分布', fontproperties=get_chinese_font())
             ax.set_ylabel(feature_names[feat_idx], fontproperties=get_chinese_font())
-            ax.set_xlabel("聚类类别", fontproperties=get_chinese_font())
+            # ax.set_xlabel("聚类类别", fontproperties=get_chinese_font())
             # 如果类别标签太长或太多，旋转它们
             if len(plot_labels) > 5:
                 ax.tick_params(axis='x', rotation=45)
@@ -697,8 +769,8 @@ class ClusteringPage(QWidget):
         self.features_for_plot = None  # 重置特征
 
         filtered_features_list = []  # 存储通过过滤的特征 [height, width, prominence]
-        for i,peak_idx in enumerate(peaks_to_process):
-            filtered_features_list.append([heights[i],widths[i],prominences[i]])
+        for i, peak_idx in enumerate(peaks_to_process):
+            filtered_features_list.append([heights[i], widths[i], prominences[i]])
 
         features_array = np.array(filtered_features_list)
         self.features_for_plot = features_array
@@ -724,7 +796,7 @@ class ClusteringPage(QWidget):
                     #     self.signal_for_plot, self.peaks_for_plot, self.labels_for_plot = result_tuple
                     #     self.features_for_plot = None  # 没有特征数据
                     # else:  # 其他意外情况
-                        # self.labels_for_plot = None  # 标记为无效结果
+                    # self.labels_for_plot = None  # 标记为无效结果
 
 
             elif selected_algorithm_name == "DBSCAN":
