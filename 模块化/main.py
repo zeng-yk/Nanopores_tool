@@ -36,9 +36,8 @@ class DataViewer(QMainWindow):
         super().__init__()
 
         self.data_manager = DataManager()
+        self.analysis_page = AnalysisPage(self.data_manager)
         self.pages = {}
-        # self.analysis_page = AnalysisPage(self.data_manager)
-        # self.clustering_page = ClusteringPage(self.data_manager)
 
         self.data_file_paths = []  # 存放路径
         self.index = 0
@@ -409,6 +408,7 @@ class DataViewer(QMainWindow):
 
                 self.data_file_paths.append(filepath)
                 self.refresh_list()
+                # self.show_analysis_page()
                 self.analysis_page.refresh_list()  # 切换前刷新分析页列表
 
                 # 如果是第一个文件，立即加载
