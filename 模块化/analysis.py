@@ -3,7 +3,7 @@ import csv
 import json
 import os
 import time
-
+import traceback
 import pyabf
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QListWidget, QPushButton, QFileDialog, QHBoxLayout, QListWidgetItem, \
@@ -981,7 +981,6 @@ class AnalysisPage(QWidget):
             QMessageBox.critical(self, "保存失败", f"无法创建保存目录结构:\n{e_os}")
         except Exception as e_main:
             print(f"保存过程中发生意外错误: {e_main}")
-            import traceback
             traceback.print_exc()
             QMessageBox.critical(self, "保存失败", f"保存过程中发生未知错误:\n{e_main}")
 

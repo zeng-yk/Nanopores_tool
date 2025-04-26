@@ -3,7 +3,7 @@ import os
 import re
 import threading
 import time
-
+import traceback
 import numpy as np
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy, QHBoxLayout, QPushButton, QStackedWidget, \
     QComboBox, QFrame, QSplitter, QListWidget, QApplication, QScrollArea, QMessageBox, QProgressDialog, QFileDialog
@@ -21,6 +21,8 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt  # 仍然需要 plt 来获取颜色映射等
 import platform
+
+from algorithms import Algorithms  # 确保导入
 
 
 def get_chinese_font():
@@ -341,7 +343,6 @@ class ClusteringPage(QWidget):
 
         except Exception as e:
             print(f"更新多个绘图时出错: {e}")
-            import traceback
             traceback.print_exc()
             self._clear_plot_layout()  # 出错时也清除一下
             self._display_plot_error(f"绘图时发生错误:\n{e}")
@@ -384,8 +385,7 @@ class ClusteringPage(QWidget):
         canvas.draw()
         self._add_plot_to_layout(canvas)
 
-        # --- 绘图辅助函数 ---
-
+    # --- 绘图辅助函数 ---
     def _plot_main_signal(self, signal_data, peak_indices, cluster_labels, ylabel):
         """绘制主信号和聚类峰值"""
         print("绘制主信号图...")
@@ -708,7 +708,6 @@ class ClusteringPage(QWidget):
             return
         print(f"获取参数: {parameters}")
 
-        from PyQt5.QtWidgets import QMessageBox
         current_item = self.submission_list_widget.currentItem()
         if not current_item:
             print("错误：请在'已提交的识别数据'中选择要进行聚类的数据。")
@@ -748,8 +747,6 @@ class ClusteringPage(QWidget):
         self.features_for_plot = features_array
 
         try:
-            from algorithms import Algorithms  # 确保导入
-
             if selected_algorithm_name == "K-Means":
                 print("调用 KMeans 算法...")
                 # !!! 关键：假设 Algorithms.run_kmeans 现在返回 (signal, peaks, labels, features) !!!
@@ -816,7 +813,6 @@ class ClusteringPage(QWidget):
             self._display_plot_error("导入错误，无法运行算法。")
         except Exception as e:
             print(f"运行算法 '{selected_algorithm_name}' 时出错: {e}")
-            import traceback
             traceback.print_exc()
             QMessageBox.critical(self, "算法错误", f"执行 '{selected_algorithm_name}' 时发生错误:\n{e}")
             self._clear_plot_layout()
