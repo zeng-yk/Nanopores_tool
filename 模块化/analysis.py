@@ -91,6 +91,7 @@ class AnalysisPage(QWidget):
         data_load_layout.addLayout(btn_layout)
 
         self.file_list = QListWidget()
+        self.file_list.setObjectName("file_list")
         self.refresh_list()
         data_load_layout.addWidget(self.file_list)
 
@@ -106,6 +107,10 @@ class AnalysisPage(QWidget):
                     }
                     QListWidget {
                         border: 1px solid #ccc;
+                    }
+                    QListWidget#file_list::item:selected {
+                        background-color: #e0e0e0;
+                        color: black;
                     }
                 ''')
 
@@ -397,8 +402,9 @@ class AnalysisPage(QWidget):
         return container, button
 
     def add_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "选择数据文件", "",
-                                                   "数据文件 (*.csv *.txt *.abf);;所有文件 (*)")
+        # file_path, _ = QFileDialog.getOpenFileName(self, "选择数据文件", "",
+        #                                            "数据文件 (*.csv *.txt *.abf);;所有文件 (*)")
+        file_path, _ = QFileDialog.getOpenFileName(self, "选择数据文件", "", "ABF 文件 (*.abf)")
         if file_path:
             self.data_manager.add_file(file_path)
             # self.file_list.addItem(file_path)
@@ -477,26 +483,26 @@ class AnalysisPage(QWidget):
                 x = abf.sweepX  # 时间点
                 y = abf.sweepY  # 个数
 
-            elif ext in [".csv", ".txt"]:
-                try:
-                    print("使用 numpy.loadtxt 加载，大文件可能需要较长时间和较多内存...")
-                    data_load = np.loadtxt(filepath, delimiter=',', comments='#')
-                except ValueError:
-                    data_load = np.loadtxt(filepath, comments='#')
-                except MemoryError:
-                    self.show_error("内存错误", "加载文件时内存不足，请尝试使用更小的数据集或优化加载方式。")
-                    return
-
-                if data_load.ndim == 1:
-                    x = np.arange(len(data_load))
-                    y = data_load
-                elif data_load.shape[1] >= 2:
-                    x = data_load[:, 0]
-                    y = data_load[:, 1]
-                    if data_load.shape[1] > 2:
-                        print(f"警告: 文件包含超过2列，仅使用前两列。")
-                else:
-                    raise ValueError("数据格式无法解析为 X, Y 列")
+            # elif ext in [".csv", ".txt"]:
+            #     try:
+            #         print("使用 numpy.loadtxt 加载，大文件可能需要较长时间和较多内存...")
+            #         data_load = np.loadtxt(filepath, delimiter=',', comments='#')
+            #     except ValueError:
+            #         data_load = np.loadtxt(filepath, comments='#')
+            #     except MemoryError:
+            #         self.show_error("内存错误", "加载文件时内存不足，请尝试使用更小的数据集或优化加载方式。")
+            #         return
+            #
+            #     if data_load.ndim == 1:
+            #         x = np.arange(len(data_load))
+            #         y = data_load
+            #     elif data_load.shape[1] >= 2:
+            #         x = data_load[:, 0]
+            #         y = data_load[:, 1]
+            #         if data_load.shape[1] > 2:
+            #             print(f"警告: 文件包含超过2列，仅使用前两列。")
+            #     else:
+            #         raise ValueError("数据格式无法解析为 X, Y 列")
             else:
                 self.show_error("错误", f"不支持的文件类型: {ext}")
                 return
@@ -652,20 +658,24 @@ class AnalysisPage(QWidget):
             self.plot1_layout.removeWidget(self.plot1_canvas)
             self.plot1_canvas.setParent(None)
 
+        signal_color = self.btn_color1.color
+        width_line_color_90 = self.btn_color2.color
+        width_line_color_50 = self.btn_color3.color
+
         fig = Figure(figsize=(4, 3))
         ax = fig.add_subplot(111)
-        ax.plot(x, y, label="Signal")
-        ax.plot(x[local_peak], y[local_peak], "ro", label="Valley")
+        ax.plot(x, y, label="Signal",color=signal_color)
+        # ax.plot(x[local_peak], y[local_peak], label="Valley")
 
         # 半高宽线
         left_ips = int(self.results_full[2][0])
         right_ips = int(self.results_full[3][0])
         height = -self.results_full[1][0]
-        ax.hlines(height, x[left_ips], x[right_ips], color="green", linewidth=2, label="Width")
+        ax.hlines(height, x[left_ips], x[right_ips], color=width_line_color_90, linewidth=2, label="Width")
 
         half_height = -self.results_half[1][0]
         ax.hlines(half_height, x[self.results_half[2][0].astype(int)], x[self.results_half[3][0].astype(int)],
-                  color="yellow",
+                  color=width_line_color_50,
                   linewidth=2, label="Half_width")
 
         ax.set_title(f"Valley {self.current_peak_index + 1}/{len(self.peaks)}")

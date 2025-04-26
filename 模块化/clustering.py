@@ -1,9 +1,12 @@
 # clustering.py
+import os
+import re
 import threading
+import time
 
 import numpy as np
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy, QHBoxLayout, QPushButton, QStackedWidget, \
-    QComboBox, QFrame, QSplitter, QListWidget, QApplication, QScrollArea
+    QComboBox, QFrame, QSplitter, QListWidget, QApplication, QScrollArea, QMessageBox, QProgressDialog, QFileDialog
 from PyQt5.QtCore import Qt, pyqtSignal
 from matplotlib import font_manager
 
@@ -57,18 +60,7 @@ class ClusteringPage(QWidget):
         # --- 左侧面板 (垂直 QSplitter 分隔) ---
         left_splitter = QSplitter(Qt.Vertical)
         left_splitter.setObjectName("left_splitter")
-        # 添加简单的分隔条样式，使其可见
-        # left_splitter.setStyleSheet("""
-        #             QSplitter::handle {
-        #                 background-color: #cccccc; /* Light gray handle */
-        #             }
-        #             QSplitter::handle:vertical {
-        #                 height: 4px; /* Handle thickness */
-        #             }
-        #             QSplitter::handle:pressed {
-        #                 background-color: #aaaaaa; /* Darker gray when pressed */
-        #             }
-        #         """)
+
         # --- 配置数据列表区 ---
         self.setup_data_list_area(left_splitter)
 
@@ -80,10 +72,12 @@ class ClusteringPage(QWidget):
 
         self.button = QPushButton("运行聚类")
         self.button.clicked.connect(self.run_selected_algorithm)
+        self.button.setMaximumHeight(30)
         left_splitter.addWidget(self.button)
 
         self.save_button = QPushButton("保存结果")
-        # self.save_button.clicked.connect(self.run_selected_algorithm)
+        self.save_button.clicked.connect(self.save_data)
+        self.save_button.setMaximumHeight(30)
         left_splitter.addWidget(self.save_button)
 
         # 设置左侧 Splitter 的初始大小 (大致比例)
@@ -92,26 +86,6 @@ class ClusteringPage(QWidget):
         main_layout.addWidget(left_splitter)
 
         self.setup_plot_area(main_layout)
-
-        # --- 右侧面板 (占位符) ---
-        # self.main_plot_area = QWidget()
-        # self.main_plot_area.setObjectName("main_plot_area")
-        # main_plot_layout = QVBoxLayout(self.main_plot_area)
-        # main_plot_label = QLabel("主图")
-        # main_plot_label.setAlignment(Qt.AlignCenter)
-        # main_plot_layout.addWidget(main_plot_label)
-        # # 基本样式
-        # self.main_plot_area.setStyleSheet('''
-        #             QWidget#main_plot_area {
-        #                 background-color: #e0e0e0;
-        #                 border: 1px solid #999999;
-        #             }
-        #              QLabel { font-size: 20px; color: #666; }
-        #         ''')
-
-        # --- 组合主布局 ---
-        # main_layout.addWidget(left_splitter)
-        # main_layout.addWidget(self.main_plot_area)
 
         # 设置主布局拉伸因子 (右侧更宽)
         main_layout.setStretchFactor(left_splitter, 2)
@@ -162,9 +136,8 @@ class ClusteringPage(QWidget):
             QListWidget#submissionList {
                 background-color: white;
                 border: 1px solid #bbbbbb;
-                font-size: 13px;
+                font-size: 15px;
             }
-            /* 移除了选中项样式，如果设置了 NoSelection */
             /* 如果仍允许选择，可以保留选中样式 */
             QListWidget#submissionList::item:selected {
                  background-color: #e0e0e0; /* 可以改为灰色或移除 */
@@ -239,7 +212,7 @@ class ClusteringPage(QWidget):
                                  border: 1px solid #bbbbbb;
                                  border-radius: 3px;
                             }
-                            QLabel { margin-bottom: 2px; font-size: 12px; color: #333;}
+                            QLabel { margin-bottom: 2px; font-size: 15px; color: #333;}
                             QComboBox#function_selector { min-height: 22px; }
                         ''')
         # 固定下拉区域的高度，使其紧凑
@@ -851,3 +824,150 @@ class ClusteringPage(QWidget):
             self._display_plot_error(f"算法执行错误:\n{e}")
 
         print("--- 算法运行与绘图更新结束 ---")
+
+    def save_data(self):
+        """
+        保存当前滚动区域中显示的所有图形到一个指定的文件夹。
+        """
+        print("开始保存聚类图形...")
+
+        # 1. 检查是否有图形可保存
+        if self.plot_layout.count() == 0:
+            QMessageBox.warning(self, "无法保存", "当前没有聚类图形可供保存。")
+            print("没有图形需要保存。")
+            return
+
+        # 2. 获取当前选中的数据源名称（用于生成文件夹名）
+        current_item = self.submission_list_widget.currentItem()
+        if not current_item:
+            QMessageBox.warning(self, "无法保存", "请先在左侧列表中选择一个数据源。")
+            print("未选择数据源。")
+            return
+        selected_data_name = current_item.text()
+        # 清理数据源名称，使其适合作为文件夹名的一部分
+        base_foldername = re.sub(r'[\\/*?:"<>|]', '_', selected_data_name)  # 替换非法字符
+
+        # 3. 选择保存目录
+        default_dir = os.path.expanduser("~")  # 默认用户主目录
+        # 尝试从数据管理器获取原始文件路径作为更优的默认目录 (如果 data_manager 有此功能)
+        # try:
+        #     submission_info = self.data_manager.get_submission_by_name(selected_data_name) # 假设有此方法
+        #     if submission_info and 'path' in submission_info:
+        #          default_dir = os.path.dirname(submission_info['path'])
+        # except AttributeError:
+        #     pass # 如果 data_manager 没有此方法，继续使用用户主目录
+
+        save_dir = QFileDialog.getExistingDirectory(self, "选择保存图形的文件夹", default_dir)
+
+        if not save_dir:
+            print("用户取消保存。")
+            return
+
+        # 4. 创建主文件夹和子文件夹
+        timestamp = time.strftime("%Y%m%d_%H%M%S")  # 添加时间戳避免覆盖
+        main_folder_name = f"{base_foldername}_clustering_{timestamp}"
+        main_folder_path = os.path.join(save_dir, main_folder_name)
+        plots_dir = os.path.join(main_folder_path, "clustering_plots")
+
+        try:
+            os.makedirs(plots_dir, exist_ok=True)  # 创建 clustering_plots 文件夹
+            print(f"图形将保存到: {plots_dir}")
+        except OSError as e:
+            QMessageBox.critical(self, "创建文件夹失败", f"无法创建保存目录:\n{plots_dir}\n错误: {e}")
+            print(f"创建目录失败: {e}")
+            return
+
+        # 5. 迭代保存图形
+        num_plots = self.plot_layout.count()
+        saved_count = 0
+        error_count = 0
+
+        # 添加进度对话框
+        progress = QProgressDialog(f"正在保存 {num_plots} 个图形...", "取消", 0, num_plots, self)
+        progress.setWindowTitle("保存进度")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(500)  # 0.5秒后显示
+        progress.setValue(0)
+        QApplication.processEvents()  # 确保对话框显示
+
+        plot_index = 0  # 用于文件命名计数
+        for i in range(num_plots):
+            if progress.wasCanceled():
+                print("保存被用户取消。")
+                break
+
+            widget = self.plot_layout.itemAt(i).widget()
+
+            if isinstance(widget, FigureCanvas):
+                plot_index += 1  # 只对 FigureCanvas 计数
+                progress.setLabelText(f"正在保存图形 {plot_index}/{num_plots}...")
+                progress.setValue(plot_index)
+                QApplication.processEvents()
+
+                figure = widget.figure
+                # 尝试从图形标题生成更具体的文件名
+                filename_base = f"plot_{plot_index:02d}"  # 默认文件名 plot_01, plot_02, ...
+                try:
+                    if figure.axes:  # 检查是否有坐标轴
+                        ax = figure.axes[0]  # 通常取第一个坐标轴
+                        title = ax.get_title()
+                        if title:
+                            # 尝试提取关键信息
+                            if "主信号图" in title or "Main Signal" in title:
+                                filename_base += "_main_signal"
+                            elif "平均峰值波形" in title or "Average Waveform" in title:
+                                match = re.search(r'类别\s*(\S+)', title)  # 查找 "类别 X"
+                                if match:
+                                    label = match.group(1).replace(':', '')  # 提取标签并清理
+                                    filename_base += f"_avg_waveform_cluster_{label}"
+                                else:
+                                    filename_base += "_avg_waveform"  # 备用
+                            elif "特征" in title or "Feature" in title:
+                                match = re.search(r'特征\s*"([^"]+)"', title)  # 查找 "特征 \"X\""
+                                if match:
+                                    feature_name = match.group(1)
+                                    sanitized_feature = re.sub(r'\W+', '_', feature_name)  # 清理特征名
+                                    filename_base += f"_feature_{sanitized_feature}"
+                                    if "箱式图" in title or "Boxplot" in title:  # 检查是否是箱式图
+                                        filename_base += "_boxplot"
+                                else:
+                                    filename_base += "_feature_plot"  # 备用
+                            elif "散点图" in title or "Scatter Plot" in title:
+                                filename_base += "_scatter_plot"
+                            # 进一步清理可能包含的非法字符
+                            filename_base = re.sub(r'[\\/*?:"<>|]', '_', filename_base)
+
+                except Exception as e_title:
+                    print(f"从标题获取文件名信息时出错: {e_title}")
+                    # 出错时继续使用默认文件名
+
+                # 最终文件名和路径
+                save_filename = f"{filename_base}.png"
+                filepath = os.path.join(plots_dir, save_filename)
+
+                # 保存图形
+                try:
+                    figure.savefig(filepath, dpi=200, bbox_inches='tight')  # 保存为 PNG
+                    saved_count += 1
+                    print(f"已保存: {save_filename}")
+                except Exception as e_save:
+                    error_count += 1
+                    print(f"保存图形 '{save_filename}' 失败: {e_save}")
+                    # 可以选择在这里提示用户，或者最后统一提示
+
+        progress.setValue(num_plots)  # 完成进度条
+        QApplication.processEvents()
+
+        # 6. 显示最终结果
+        if not progress.wasCanceled():
+            if error_count == 0:
+                QMessageBox.information(self, "保存完成",
+                                        f"成功保存 {saved_count} 个图形到:\n{plots_dir}")
+            else:
+                QMessageBox.warning(self, "保存部分完成",
+                                    f"成功保存 {saved_count} 个图形，但有 {error_count} 个保存失败。\n保存在:\n{plots_dir}")
+        else:
+            QMessageBox.information(self, "保存已取消",
+                                    f"保存过程被取消。\n已保存 {saved_count} 个图形到:\n{plots_dir}")
+
+        print(f"--- 图形保存结束 (成功: {saved_count}, 失败: {error_count}) ---")

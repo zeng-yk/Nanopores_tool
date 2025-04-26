@@ -92,6 +92,7 @@ class DataViewer(QMainWindow):
 
         # 文件列表
         self.file_list = QListWidget()
+        self.file_list.setObjectName("file_list")
         self.refresh_list()
         data_load_layout.addWidget(self.file_list)
 
@@ -111,6 +112,10 @@ class DataViewer(QMainWindow):
             }
             QListWidget {
                 border: 1px solid #ccc;
+            }
+            QListWidget#file_list::item:selected {
+                background-color: #e0e0e0; /* 可以改为灰色或移除 */
+                color: black;
             }
         ''')
 
@@ -386,18 +391,51 @@ class DataViewer(QMainWindow):
         main_layout.addWidget(self.main_stack, 1)  # StackedWidget 占据主要空间 (拉伸因子=1)
         main_layout.addWidget(right_toolbar_widget, 0)  # 右侧工具栏宽度固定 (拉伸因子=0)
 
+        font_size = "14px"  # 例如，设置为 14 像素
+        self.setStyleSheet(f"""
+                ClusteringPage {{ /* 应用于整个页面，可以设置一个基础字体 */
+                    /* font-size: {font_size}; */ /* 取消注释以设置全局默认值 */
+                }}
+                QLabel {{
+                    font-size: {font_size};
+                    /* 可以添加其他样式，如 color, padding 等 */
+                }}
+                QPushButton {{
+                    font-size: {font_size};
+                    padding: 5px 10px; /* 增加按钮内边距，让文字不拥挤 */
+                }}
+                QComboBox {{
+                    font-size: {font_size};
+                }}
+                QListWidget {{
+                    font-size: {font_size};
+                }}
+                /* 如果使用了 QGroupBox 或 QFrame 作为容器，也可以设置它们的标题字体 */
+                QGroupBox::title {{
+                    font-size: {font_size};
+                    font-weight: bold;
+                }}
+                /* 对于参数设置区域内的控件 (假设它们也在 QLabel, QSpinBox 等内) */
+                /* BaseParameterWidget QLabel, BaseParameterWidget QSpinBox, ... 如果想单独控制 */
+                /* 但通常上面的全局设置就足够了 */
+            """)
+
 
     def refresh_list(self):
         self.file_list.clear()
+        self.data_file_paths.clear()
         for path in self.data_manager.get_all_files():
+            self.data_file_paths.append(path)
             item = QListWidgetItem(os.path.basename(path))
             item.setToolTip(path)
             self.file_list.addItem(item)
 
 
     def import_data_file(self):
+        # files, _ = QFileDialog.getOpenFileNames(
+        #     self, "选择数据文件", "", "数据文件 (*.csv *.txt *.abf);;所有文件 (*)")
         files, _ = QFileDialog.getOpenFileNames(
-            self, "选择数据文件", "", "数据文件 (*.csv *.txt *.abf);;所有文件 (*)")
+            self, "选择数据文件", "", "ABF 文件 (*.abf)")
         if not files:
             return
 
@@ -477,30 +515,30 @@ class DataViewer(QMainWindow):
                     abf.setSweep(0)
                     x = abf.sweepX
                     y = abf.sweepY
-                elif ext in [".csv", ".txt"]:
-                    # ... (csv/txt 加载逻辑保持不变) ...
-                    try:
-                        # 使用 numpy.loadtxt 可能会对超大文件造成内存问题
-                        # 考虑使用 pandas 分块读取或更内存高效的方式
-                        # 这里暂时保持 numpy.loadtxt
-                        print("使用 numpy.loadtxt 加载，大文件可能需要较长时间和较多内存...")
-                        data_load = np.loadtxt(filepath, delimiter=',', comments='#')
-                    except ValueError:
-                        data_load = np.loadtxt(filepath, comments='#')
-                    except MemoryError:
-                        self.show_error("内存错误", "加载文件时内存不足，请尝试使用更小的数据集或优化加载方式。")
-                        return
-
-                    if data_load.ndim == 1:
-                        x = np.arange(len(data_load))
-                        y = data_load
-                    elif data_load.shape[1] >= 2:
-                        x = data_load[:, 0]
-                        y = data_load[:, 1]
-                        if data_load.shape[1] > 2:
-                            print(f"警告: 文件包含超过2列，仅使用前两列。")
-                    else:
-                        raise ValueError("数据格式无法解析为 X, Y 列")
+                # elif ext in [".csv", ".txt"]:
+                #     # ... (csv/txt 加载逻辑保持不变) ...
+                #     try:
+                #         # 使用 numpy.loadtxt 可能会对超大文件造成内存问题
+                #         # 考虑使用 pandas 分块读取或更内存高效的方式
+                #         # 这里暂时保持 numpy.loadtxt
+                #         print("使用 numpy.loadtxt 加载，大文件可能需要较长时间和较多内存...")
+                #         data_load = np.loadtxt(filepath, delimiter=',', comments='#')
+                #     except ValueError:
+                #         data_load = np.loadtxt(filepath, comments='#')
+                #     except MemoryError:
+                #         self.show_error("内存错误", "加载文件时内存不足，请尝试使用更小的数据集或优化加载方式。")
+                #         return
+                #
+                #     if data_load.ndim == 1:
+                #         x = np.arange(len(data_load))
+                #         y = data_load
+                #     elif data_load.shape[1] >= 2:
+                #         x = data_load[:, 0]
+                #         y = data_load[:, 1]
+                #         if data_load.shape[1] > 2:
+                #             print(f"警告: 文件包含超过2列，仅使用前两列。")
+                #     else:
+                #         raise ValueError("数据格式无法解析为 X, Y 列")
                 else:
                     self.show_error("错误", f"不支持的文件类型: {ext}")
                     return
@@ -577,7 +615,7 @@ class DataViewer(QMainWindow):
 
 
         # --- 3. 执行峰值保持降采样并绘制 ---
-        thumbnail_target_points = 5000 # 目标“区间”数量，绘制点数约为2倍
+        thumbnail_target_points = 1000 # 目标“区间”数量，绘制点数约为2倍
         thumbnail_sampling_step = max(1, self.data_length // thumbnail_target_points)
         num_intervals = self.data_length // thumbnail_sampling_step
         print(f"缩略图降采样步长 (区间大小): {thumbnail_sampling_step}, 区间数量: {num_intervals}")
