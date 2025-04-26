@@ -1,4 +1,6 @@
 # analysis_page.py
+import csv
+import json
 import os
 import time
 
@@ -6,9 +8,9 @@ import pyabf
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QListWidget, QPushButton, QFileDialog, QHBoxLayout, QListWidgetItem, \
     QSplitter, QFormLayout, QSpinBox, QColorDialog, QLabel, QDoubleSpinBox, QCheckBox, QMessageBox, QInputDialog, \
-    QSizePolicy, QButtonGroup
+    QSizePolicy, QButtonGroup, QApplication, QProgressDialog
 from PyQt5.QtCore import pyqtSignal, Qt, QTimer
-from matplotlib import font_manager
+from matplotlib import font_manager, pyplot as plt
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -61,10 +63,10 @@ class AnalysisPage(QWidget):
         self.data_file_paths = []  # 存放路径
         self.ui()
 
-        self.flag = True # 是否有运行峰值检测
+        self.flag = True  # 是否有运行峰值检测
         self.select_flag = False
         self.Positive = True
-
+        self.chinese_font = get_chinese_font() # 获取字体属性
 
     def ui(self):
         main_layout = QHBoxLayout(self)  # 主窗口使用水平布局
@@ -167,13 +169,13 @@ class AnalysisPage(QWidget):
         form.addRow(self.add_label("Prominence:"), self.prominence_widget)
         form.addRow(self.add_label("Width:"), self.width_widget)
 
-        self.color1_widget, self.btn_color1 = self.add_color_selector("#FF0000")
+        self.color1_widget, self.btn_color1 = self.add_color_selector("#0000FF")
         self.color2_widget, self.btn_color2 = self.add_color_selector("#00FF00")
-        self.color3_widget, self.btn_color3 = self.add_color_selector("#0000FF")
+        self.color3_widget, self.btn_color3 = self.add_color_selector("#FFD700")
 
-        form.addRow(self.add_label("Color 1:"), self.color1_widget)
-        form.addRow(self.add_label("Color 2:"), self.color2_widget)
-        form.addRow(self.add_label("Color 3:"), self.color3_widget)
+        form.addRow(self.add_label("原始信号:"), self.color1_widget)
+        form.addRow(self.add_label("峰宽线:"), self.color2_widget)
+        form.addRow(self.add_label("半峰宽:"), self.color3_widget)
 
         form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
@@ -206,7 +208,7 @@ class AnalysisPage(QWidget):
         parameter_settings_layout.addWidget(self.submit_button)
 
         self.save_button = QPushButton("导出识别结果")
-        # self.save_button.clicked.connect(self.apply_data_range_to_view)
+        self.save_button.clicked.connect(self.save_data)
         parameter_settings_layout.addWidget(self.save_button)
         parameter_settings_layout.addStretch(1)
 
@@ -726,6 +728,455 @@ class AnalysisPage(QWidget):
         if self.current_peak_index < len(self.peaks) - 1:
             self.current_peak_index += 1
             self.plot_single_peak()
+
+    # --- save_data (核心实现) ---
+    def save_data(self):
+        print("尝试保存识别结果...")
+        # 1. 检查是否有结果
+        if self.peaks is None or len(self.peaks) == 0:
+            QMessageBox.warning(self, "无法保存", "没有有效的峰值检测结果可供保存。请先运行检测。")
+            return
+        if not self.filepath:
+            QMessageBox.warning(self, "无法保存", "当前未加载有效的数据文件。")
+            return
+
+        # 2. 选择保存目录
+        # 建议默认保存目录为原始文件所在目录
+        default_dir = os.path.dirname(self.filepath)
+        save_dir = QFileDialog.getExistingDirectory(self, "选择保存结果的文件夹", default_dir)
+
+        if not save_dir:
+            print("用户取消保存。")
+            return
+
+        # 3. 创建主文件夹名称 (基于原始文件名和时间戳，避免覆盖)
+        base_filename = os.path.splitext(os.path.basename(self.filepath))[0]
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        main_folder_name = f"{base_filename}_results_{timestamp}"
+        main_folder_path = os.path.join(save_dir, main_folder_name)
+
+        all_json_data = []
+        all_csv_data_rows = []
+
+        try:
+            os.makedirs(main_folder_path, exist_ok=True)  # 创建主文件夹
+            print(f"结果将保存到: {main_folder_path}")
+
+            # 4. 创建子文件夹
+            main_plot_dir = os.path.join(main_folder_path, "main_plot")
+            single_plots_dir = os.path.join(main_folder_path, "single_peak_plots")
+            single_data_dir = os.path.join(main_folder_path, "single_peak_data")
+            os.makedirs(main_plot_dir, exist_ok=True)
+            os.makedirs(single_plots_dir, exist_ok=True)
+            os.makedirs(single_data_dir, exist_ok=True)
+
+            # 5. 保存主图 (使用当前的 self.figure)
+            main_plot_filename = os.path.join(main_plot_dir, f"{base_filename}_main_plot.png")
+            try:
+                self.figure.savefig(main_plot_filename, dpi=300, bbox_inches='tight')
+                print(f"主图已保存到: {main_plot_filename}")
+            except Exception as e:
+                print(f"保存主图失败: {e}")
+                QMessageBox.warning(self, "保存错误", f"保存主图时出错:\n{e}")
+                # 不中断，继续尝试保存其他内容
+
+            # 6. 循环处理并保存每个单峰图和数据
+            num_peaks_to_save = len(self.peaks)
+            progress = QProgressDialog(f"正在导出 {num_peaks_to_save} 个峰...", "取消", 0, num_peaks_to_save, self)
+            progress.setWindowTitle("导出进度")
+            progress.setWindowModality(Qt.WindowModal)  # 模态对话框，阻止其他操作
+            progress.setMinimumDuration(1000)  # 1秒后才显示，避免闪烁
+            progress.setValue(0)
+            QApplication.processEvents()  # 显示进度条
+
+            saved_count = 0
+            for i in range(num_peaks_to_save):
+                if progress.wasCanceled():
+                    print("导出被用户取消。")
+                    break
+
+                progress.setValue(i)
+                progress.setLabelText(f"正在导出峰 {i + 1}/{num_peaks_to_save}...")
+                QApplication.processEvents()
+
+                peak_global_idx = self.peaks[i]
+                # --- 6a. 生成并保存单峰图 ---
+                # (与 plot_single_peak 类似，但操作在临时的 Figure 上)
+                try:
+                    temp_fig, temp_ax = plt.subplots(figsize=(4, 3))  # 创建临时图
+                    # (复用 plot_single_peak 的窗口计算和绘图逻辑，但绘制到 temp_ax 上)
+                    # 这里简化，直接调用一个辅助函数或复制代码片段
+                    plot_success, extracted_data = self._generate_single_peak_figure_and_data(i, temp_ax)
+
+                    if plot_success:
+                        peak_filename_base = f"peak_{i + 1:04d}"  # 格式化文件名，如 peak_0001
+                        plot_filepath = os.path.join(single_plots_dir, f"{peak_filename_base}.png")
+                        temp_fig.savefig(plot_filepath, dpi=150, bbox_inches='tight')
+                        saved_count += 1
+                    else:
+                        print(f"警告：未能成功生成峰 {i + 1} 的图形。")
+
+                    plt.close(temp_fig)  # **非常重要：关闭临时图形释放内存**
+
+                except Exception as e_plot:
+                    print(f"导出峰 {i + 1} 的图形时出错: {e_plot}")
+                    plt.close(temp_fig)  # 确保关闭
+                    extracted_data = None  # 图形失败，数据也可能不完整
+
+                # --- 6b. 提取并保存单峰数据 (CSV 和 JSON) ---
+                if extracted_data:  # 确保从绘图辅助函数获取了数据
+                    # csv_filepath = os.path.join(single_data_dir, f"{peak_filename_base}_data.csv")
+                    # json_filepath = os.path.join(single_data_dir, f"{peak_filename_base}_data.json")
+
+                    # 准备 JSON 数据 (主要是汇总信息)
+                    json_data = {
+                        "peak_index_global": int(peak_global_idx),
+                        "peak_index_in_list": i + 1,
+                        "peak_x": extracted_data.get("peak_x"),
+                        "peak_y": extracted_data.get("peak_y"),
+                        "prominence": extracted_data.get("prominence"),
+                        # 添加宽度信息
+                        "width_90": extracted_data.get("width_90"),
+                        "width_90_y_level": extracted_data.get("width_90_y_level"),
+                        "width_90_left_x": extracted_data.get("width_90_left_x"),
+                        "width_90_right_x": extracted_data.get("width_90_right_x"),
+                        "width_50": extracted_data.get("width_50"),
+                        "width_50_y_level": extracted_data.get("width_50_y_level"),
+                        "width_50_left_x": extracted_data.get("width_50_left_x"),
+                        "width_50_right_x": extracted_data.get("width_50_right_x"),
+                        # 可以添加窗口范围信息
+                        "window_start_index": extracted_data.get("window_start_index"),
+                        "window_end_index": extracted_data.get("window_end_index"),
+                    }
+                    all_json_data.append(json_data)
+                    # CSV 每行数据，保持和 JSON 一致
+                    csv_row = [
+                        json_data["peak_index_global"],
+                        json_data["peak_index_in_list"],
+                        json_data["peak_x"],
+                        json_data["peak_y"],
+                        json_data["prominence"],
+                        json_data["width_90"],
+                        json_data["width_90_y_level"],
+                        json_data["width_90_left_x"],
+                        json_data["width_90_right_x"],
+                        json_data["width_50"],
+                        json_data["width_50_y_level"],
+                        json_data["width_50_left_x"],
+                        json_data["width_50_right_x"],
+                        json_data["window_start_index"],
+                        json_data["window_end_index"],
+                    ]
+                    all_csv_data_rows.append(csv_row)
+                else:
+                    print(f"跳过保存峰 {i + 1} 的数据，因为绘图或数据提取失败。")
+
+
+                #     # 保存 JSON
+                #     try:
+                #         with open(json_filepath, 'w', encoding='utf-8') as f_json:
+                #             # 使用 numpy_encoder 处理可能存在的 numpy 类型
+                #             json.dump(json_data, f_json, indent=4, default=self.numpy_encoder)
+                #     except Exception as e_json:
+                #         print(f"保存峰 {i + 1} 的 JSON 数据时出错: {e_json}")
+                #
+                #     # 准备并保存 CSV 数据 (主要是窗口内的 X, Y 数据)
+                #     try:
+                #         with open(csv_filepath, 'w', newline='', encoding='utf-8') as f_csv:
+                #             writer = csv.writer(f_csv)
+                #             # 写入头信息 (从 JSON 数据提取)
+                #             for key, value in json_data.items():
+                #                 writer.writerow([f"# {key}", value])
+                #             writer.writerow([])  # 空行分隔
+                #             writer.writerow(["X", "Y"])  # 数据列标题
+                #             # 写入窗口数据
+                #             x_win = extracted_data.get("x_window", [])
+                #             y_win = extracted_data.get("y_window", [])
+                #             if len(x_win) == len(y_win):
+                #                 for row_idx in range(len(x_win)):
+                #                     writer.writerow([x_win[row_idx], y_win[row_idx]])
+                #             else:
+                #                 print(f"警告：峰 {i + 1} 的窗口数据 X/Y 长度不匹配，CSV 未写入数据点。")
+                #     except Exception as e_csv:
+                #         print(f"保存峰 {i + 1} 的 CSV 数据时出错: {e_csv}")
+                #
+                #     saved_count += 1
+                # else:
+                #     print(f"跳过保存峰 {i + 1} 的数据，因为绘图或数据提取失败。")
+
+            # 保存总的 JSON 文件
+            all_json_path = os.path.join(single_data_dir, "all_peaks_data.json")
+            try:
+                with open(all_json_path, 'w', encoding='utf-8') as f_all_json:
+                    json.dump(all_json_data, f_all_json, indent=4, default=self.numpy_encoder)
+                print(f"所有峰的数据已保存到: {all_json_path}")
+            except Exception as e_json_all:
+                print(f"保存总 JSON 文件时出错: {e_json_all}")
+
+            # 保存总的 CSV 文件
+            all_csv_path = os.path.join(single_data_dir, "all_peaks_data.csv")
+            try:
+                with open(all_csv_path, 'w', newline='', encoding='utf-8') as f_all_csv:
+                    writer = csv.writer(f_all_csv)
+                    # 写入表头
+                    writer.writerow([
+                        "peak_index_global",
+                        "peak_index_in_list",
+                        "peak_x",
+                        "peak_y",
+                        "prominence",
+                        "width_90",
+                        "width_90_y_level",
+                        "width_90_left_x",
+                        "width_90_right_x",
+                        "width_50",
+                        "width_50_y_level",
+                        "width_50_left_x",
+                        "width_50_right_x",
+                        "window_start_index",
+                        "window_end_index",
+                    ])
+                    writer.writerows(all_csv_data_rows)
+                print(f"所有峰的数据已保存到: {all_csv_path}")
+            except Exception as e_csv_all:
+                print(f"保存总 CSV 文件时出错: {e_csv_all}")
+
+            progress.setValue(num_peaks_to_save)  # 完成进度条
+            QApplication.processEvents()
+
+            # 7. 显示最终结果
+            if not progress.wasCanceled():
+                QMessageBox.information(self, "导出完成",
+                                        f"成功导出 {saved_count}/{num_peaks_to_save} 个峰的结果到:\n{main_folder_path}")
+            else:
+                QMessageBox.warning(self, "导出已取消",
+                                    f"导出过程被取消。\n已导出 {saved_count} 个峰的结果到:\n{main_folder_path}")
+
+        except OSError as e_os:
+            print(f"创建文件夹结构时出错: {e_os}")
+            QMessageBox.critical(self, "保存失败", f"无法创建保存目录结构:\n{e_os}")
+        except Exception as e_main:
+            print(f"保存过程中发生意外错误: {e_main}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "保存失败", f"保存过程中发生未知错误:\n{e_main}")
+
+    def _generate_single_peak_figure_and_data(self, peak_list_index, ax):
+        """
+        辅助函数：为指定索引的峰生成图形（在传入的 Axes 上）并提取相关数据。
+        **采用局部窗口计算宽度的方式，与 plot_single_peak 保持一致。**
+        Args:
+            peak_list_index (int): 峰在 self.peaks 列表中的索引。
+            ax (matplotlib.axes.Axes): 要绘制图形的 Axes 对象。
+        Returns:
+            tuple: (bool, dict)
+                   bool: 是否成功生成图形和提取数据。
+                   dict: 包含该峰详细信息的字典，用于保存。
+        """
+        if self.peaks is None or not (0 <= peak_list_index < len(self.peaks)):
+            print(f"Error (helper): Invalid peak_list_index: {peak_list_index}")
+            return False, {}
+
+        peak_global_idx = self.peaks[peak_list_index]
+        if not (0 <= peak_global_idx < self.data_length):
+            print(f"Error (helper): Invalid global index {peak_global_idx} for list index {peak_list_index}")
+            return False, {}
+
+        # --- 确定窗口 (使用与 plot_single_peak 相似的固定窗口或之前的动态逻辑) ---
+        # 为了严格匹配 plot_single_peak 的示例，我们使用固定窗口
+        # 如果需要动态窗口，可以取消注释下面的 width_data_90 部分
+        window_half_width = 100  # 与 plot_single_peak 示例中的 window = 100 对应 (半宽)
+        start_idx = max(0, int(peak_global_idx - window_half_width))
+        end_idx = min(self.data_length, int(peak_global_idx + window_half_width + 1))  # +1 for slicing end point
+        x_window = self.full_x[start_idx:end_idx]
+        y_window = self.full_y[start_idx:end_idx]
+
+        if len(x_window) == 0:
+            print(f"Error (helper): Empty window data for peak {peak_list_index}")
+            return False, {}
+
+        # --- 定位峰在窗口内的索引 ---
+        peak_local_idx = peak_global_idx - start_idx
+        # 验证并重新定位 (如果计算出的索引无效或想更精确)
+        if not (0 <= peak_local_idx < len(y_window)):
+            print(f"Warning (helper): Calculated local index {peak_local_idx} out of bounds. Re-finding in window.")
+            if self.Positive:  # Find maximum for peaks
+                peak_local_idx = np.argmax(y_window)
+            else:  # Find minimum for valleys
+                peak_local_idx = np.argmin(y_window)
+            # Final check
+            if not (0 <= peak_local_idx < len(y_window)):
+                print(f"Error (helper): Could not reliably find peak within the window for peak {peak_list_index}.")
+                return False, {}
+
+        peak_x_val = x_window[peak_local_idx]
+        peak_y_val = y_window[peak_local_idx]
+
+        # --- 准备用于局部宽度计算的信号 ---
+        inverted_window_y = -y_window if not self.Positive else y_window
+
+        # --- 在局部窗口内计算宽度 ---
+        results_full_local = None
+        results_half_local = None
+        try:
+            # Note: peak_widths needs peak indices as a list/array
+            results_full_local = peak_widths(inverted_window_y, [peak_local_idx], rel_height=0.9)
+        except ValueError as e:
+            print(f"Helper: Warning - Could not calculate 90% width for peak {peak_list_index} in window: {e}")
+        except Exception as e:  # Catch other potential errors
+            print(f"Helper: Warning - Unexpected error calculating 90% width for peak {peak_list_index}: {e}")
+
+        try:
+            results_half_local = peak_widths(inverted_window_y, [peak_local_idx], rel_height=0.5)
+        except ValueError as e:
+            print(f"Helper: Warning - Could not calculate 50% width for peak {peak_list_index} in window: {e}")
+        except Exception as e:
+            print(f"Helper: Warning - Unexpected error calculating 50% width for peak {peak_list_index}: {e}")
+
+        # --- 绘图 ---
+        signal_color = self.btn_color1.color
+        peak_color = "#FF0000"
+        width_line_color_90 = self.btn_color2.color  # Use color 3 for 90%
+        width_line_color_50 = self.btn_color3.color  # Example: Gold/Yellow for 50% (like plot_single_peak)
+
+        peak_label_str = "波峰" if self.Positive else "波谷"
+        if not self.chinese_font: peak_label_str = "Peak" if self.Positive else "Valley"
+
+        ax.plot(x_window, y_window, color=signal_color, linewidth=1.5,
+                label="信号段" if self.chinese_font else "Signal Segment")
+        ax.plot(peak_x_val, peak_y_val, "o", markersize=6, color=peak_color, label=peak_label_str)
+
+        # --- 准备要返回的数据字典 ---
+        extracted_data = {
+            "peak_index_global": int(peak_global_idx),
+            "peak_index_in_list": peak_list_index + 1,
+            "peak_x": peak_x_val,
+            "peak_y": peak_y_val,
+            "prominence": None,  # Will be filled later from self.prominences
+            "width_90": None, "width_90_y_level": None, "width_90_left_x": None, "width_90_right_x": None,
+            "width_50": None, "width_50_y_level": None, "width_50_left_x": None, "width_50_right_x": None,
+            "x_window": x_window.tolist(),
+            "y_window": y_window.tolist(),
+            "window_start_index": start_idx,
+            "window_end_index": end_idx,
+        }
+
+        # --- 绘制宽度线 (使用局部计算结果) ---
+        if results_full_local and results_full_local[0] is not None and len(results_full_local[0]) > 0:
+            try:
+                # Indices are relative to the window start (start_idx)
+                left_ips_local = int(np.floor(results_full_local[2][0]))  # Floor for safety indexing x_window
+                right_ips_local = int(np.ceil(results_full_local[3][0]))  # Ceil for safety indexing x_window
+                # Ensure indices are within the bounds of x_window
+                left_ips_local = max(0, left_ips_local)
+                right_ips_local = min(len(x_window) - 1, right_ips_local)
+
+                height_level_local = results_full_local[1][0]  # Height level from peak_widths result
+
+                # Get corresponding X coordinates from the window's X data
+                left_x = x_window[left_ips_local]
+                right_x = x_window[right_ips_local]
+
+                # Determine the actual Y level on the plot
+                # Height returned by peak_widths is relative to the baseline of the signal fed to it (inverted_window_y)
+                actual_y_level = -height_level_local if not self.Positive else height_level_local
+
+                label_90 = "90%宽度  " if self.chinese_font else "Width @ 90%"
+                ax.hlines(actual_y_level, left_x, right_x, color=width_line_color_90, linestyle='--', linewidth=2,
+                          label=label_90)
+                ax.plot([left_x, right_x], [actual_y_level, actual_y_level], '|', color=width_line_color_90,
+                        markersize=10)
+
+                # Populate extracted_data
+                extracted_data["width_90"] = right_x - left_x
+                extracted_data["width_90_y_level"] = actual_y_level
+                extracted_data["width_90_left_x"] = left_x
+                extracted_data["width_90_right_x"] = right_x
+
+            except IndexError as e:
+                print(f"Helper: Error processing 90% width indices for peak {peak_list_index}: {e}")
+            except Exception as e:
+                print(f"Helper: Error plotting 90% width for peak {peak_list_index}: {e}")
+
+        # 50% Width (matches 'results_half' in plot_single_peak)
+        if results_half_local and results_half_local[0] is not None and len(results_half_local[0]) > 0:
+            try:
+                # Indices are relative to the window start (start_idx)
+                left_ips_local = int(np.floor(results_half_local[2][0]))
+                right_ips_local = int(np.ceil(results_half_local[3][0]))
+                left_ips_local = max(0, left_ips_local)
+                right_ips_local = min(len(x_window) - 1, right_ips_local)
+
+                height_level_local = results_half_local[1][0]
+
+                left_x = x_window[left_ips_local]
+                right_x = x_window[right_ips_local]
+                actual_y_level = -height_level_local if not self.Positive else height_level_local
+
+                label_50 = "宽度 @ 50%" if self.chinese_font else "Width @ 50%"
+                ax.hlines(actual_y_level, left_x, right_x, color=width_line_color_50, linestyle='-', linewidth=2,
+                          label=label_50)
+                ax.plot([left_x, right_x], [actual_y_level, actual_y_level], '|', color=width_line_color_50,
+                        markersize=10)
+
+                extracted_data["width_50"] = right_x - left_x
+                extracted_data["width_50_y_level"] = actual_y_level
+                extracted_data["width_50_left_x"] = left_x
+                extracted_data["width_50_right_x"] = right_x
+
+            except IndexError as e:
+                print(f"Helper: Error processing 50% width indices for peak {peak_list_index}: {e}")
+            except Exception as e:
+                print(f"Helper: Error plotting 50% width for peak {peak_list_index}: {e}")
+
+        # 提取突出度
+        if hasattr(self, 'prominences') and self.prominences is not None and len(self.prominences) > peak_list_index:
+            try:
+                extracted_data["prominence"] = self.prominences[peak_list_index]
+            except IndexError:
+                print(f"Helper: Warning - Index out of bounds for prominence at peak {peak_list_index}")
+
+        # --- 设置图形属性 ---
+        title_text = f"{peak_label_str} {peak_list_index + 1} (全局索引 {peak_global_idx})"
+        if not self.chinese_font: title_text = f"{peak_label_str} {peak_list_index + 1} (Global Index {peak_global_idx})"
+        font_prop = self.chinese_font if self.chinese_font else None
+        ax.set_title(title_text, fontproperties=font_prop, fontsize=9)
+        ax.set_xlabel("时间/索引" if self.chinese_font else "Time/Index", fontproperties=font_prop)
+        ax.set_ylabel("幅值" if self.chinese_font else "Amplitude", fontproperties=font_prop)
+        # Only add legend if there are labeled elements
+        handles, labels = ax.get_legend_handles_labels()
+        if handles:
+            ax.legend(handles=handles, labels=labels, prop=font_prop if font_prop else None, fontsize=7)
+        ax.grid(True, linestyle=':', alpha=0.7)
+
+        return True, extracted_data
+
+    @staticmethod
+    def numpy_encoder(obj):
+        """ 自定义 JSON 编码器，处理 numpy 类型 """
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            # 检查是否为 NaN 或 Inf
+            if np.isnan(obj): return "NaN" # 将 NaN 转为字符串
+            if np.isinf(obj): return "Infinity" if obj > 0 else "-Infinity" # 将 Inf 转为字符串
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist() # 将数组转为列表
+        elif isinstance(obj, (np.bool_, bool)):
+             return bool(obj)
+        # 添加对 bytes 的处理 (如果需要)
+        # elif isinstance(obj, bytes):
+        #     try:
+        #         return obj.decode('utf-8') # 尝试解码
+        #     except UnicodeDecodeError:
+        #         return f"bytes:{obj.hex()}" # 无法解码则返回十六进制表示
+        try:
+            # 尝试默认的 JSON 序列化
+            return json.JSONEncoder().default(obj)
+        except TypeError:
+             # 如果还是失败，返回对象的字符串表示
+             return str(obj)
 
     # 分页信号传递
     def trigger_refresh(self):
