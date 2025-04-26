@@ -391,7 +391,7 @@ class DataViewer(QMainWindow):
         main_layout.addWidget(self.main_stack, 1)  # StackedWidget 占据主要空间 (拉伸因子=1)
         main_layout.addWidget(right_toolbar_widget, 0)  # 右侧工具栏宽度固定 (拉伸因子=0)
 
-        font_size = "14px"  # 例如，设置为 14 像素
+        font_size = "25px"
         self.setStyleSheet(f"""
                 ClusteringPage {{ /* 应用于整个页面，可以设置一个基础字体 */
                     /* font-size: {font_size}; */ /* 取消注释以设置全局默认值 */

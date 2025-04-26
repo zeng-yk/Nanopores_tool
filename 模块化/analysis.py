@@ -126,6 +126,9 @@ class AnalysisPage(QWidget):
             QWidget#parameter_settings {
                 background-color: #f5f5f5;
                 border: 1px solid #999;
+                margin-top: 10px;
+                padding-top: 10px;
+                margin-bottom: 10px;
             }
         ''')
         self.function_1 = QWidget()
@@ -139,7 +142,9 @@ class AnalysisPage(QWidget):
         self.Downsampling_checkbox.setChecked(True)  # 默认勾选
 
         self.btn1 = QPushButton("波峰")
+        self.btn1.setMinimumHeight(50)
         self.btn2 = QPushButton("波谷")
+        self.btn2.setMinimumHeight(50)
         # 设置为可点击状态
         self.btn1.setCheckable(True)
         self.btn2.setCheckable(True)
@@ -189,6 +194,7 @@ class AnalysisPage(QWidget):
         function_1_layout.addLayout(form)
 
         self.apply_range_button = QPushButton("应用参数")
+        self.apply_range_button.setMinimumHeight(50)
         self.apply_range_button.clicked.connect(self.apply_data_range_to_view)
         function_1_layout.addWidget(self.apply_range_button)
 
@@ -209,17 +215,19 @@ class AnalysisPage(QWidget):
 
         parameter_settings_layout.addStretch(1)
         self.submit_button = QPushButton("提交识别结果")
+        self.submit_button.setMinimumHeight(50)
         self.submit_button.clicked.connect(self.submit_data)
         parameter_settings_layout.addWidget(self.submit_button)
 
         self.save_button = QPushButton("导出识别结果")
+        self.save_button.setMinimumHeight(50)
         self.save_button.clicked.connect(self.save_data)
         parameter_settings_layout.addWidget(self.save_button)
         parameter_settings_layout.addStretch(1)
 
         left_splitter.addWidget(self.parameter_settings)
 
-        left_splitter.setSizes([700, 300])  # Example sizes
+        left_splitter.setSizes([600, 400])  # Example sizes
 
         # 右侧的图展示区域
         right_section_widget = QWidget()
@@ -236,6 +244,7 @@ class AnalysisPage(QWidget):
         self.canvas = FigureCanvas(self.figure)
         main_plot_layout.addWidget(self.canvas)
         self.ax = self.figure.add_subplot(111)
+        self.ax.tick_params(labelsize=14)
 
         self.main_plot.setStyleSheet('''
             QWidget#main_plot {
@@ -252,7 +261,6 @@ class AnalysisPage(QWidget):
         plot1_container_layout = QVBoxLayout(plot1_container_widget)
         plot1_container_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
 
-        # Plot 1 Navigation Buttons
         plot1_nav_layout = QHBoxLayout()
         plot1_nav_layout.addStretch()  # Push buttons to the right
         self.prev_plot1_button = QPushButton("<")
@@ -301,6 +309,9 @@ class AnalysisPage(QWidget):
 
         main_layout.addWidget(left_splitter)
         main_layout.addWidget(right_section_widget)
+        main_layout.setStretch(0,2)
+        main_layout.setStretch(1,8)
+
 
     @staticmethod
     def add_label(name):
@@ -379,14 +390,17 @@ class AnalysisPage(QWidget):
     # ====== 第二组：颜色参数（无复选框）======
     def add_color_selector(default_color="#FF0000"):
         container = QWidget()
+        container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
 
         label = QLabel()
-        label.setFixedWidth(60)
+        label.setFixedWidth(150)
         label.setStyleSheet(f"background-color: {default_color}; border: 1px solid #666;")
 
         button = QPushButton("选择")
+        button.setMinimumHeight(45)
+        button.setMaximumWidth(100)
 
         def choose_color():
             color = QColorDialog.getColor()
@@ -629,8 +643,8 @@ class AnalysisPage(QWidget):
             peak_values = self.full_y[self.peaks]
             self.ax.plot(peak_times, peak_values, "ro", label="Peaks")
 
-        self.ax.set_title("信号与峰值", fontproperties=get_chinese_font())
-        self.ax.legend()
+        self.ax.set_title("信号与峰值", fontproperties=get_chinese_font(),fontsize=18)
+        self.ax.legend(fontsize=14)
         self.canvas.draw()
 
     def plot_single_peak(self):

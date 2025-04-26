@@ -72,12 +72,12 @@ class ClusteringPage(QWidget):
 
         self.button = QPushButton("运行聚类")
         self.button.clicked.connect(self.run_selected_algorithm)
-        self.button.setMaximumHeight(30)
+        self.button.setMaximumHeight(50)
         left_splitter.addWidget(self.button)
 
         self.save_button = QPushButton("保存结果")
         self.save_button.clicked.connect(self.save_data)
-        self.save_button.setMaximumHeight(30)
+        self.save_button.setMaximumHeight(50)
         left_splitter.addWidget(self.save_button)
 
         # 设置左侧 Splitter 的初始大小 (大致比例)
@@ -125,10 +125,10 @@ class ClusteringPage(QWidget):
                 background-color: #f0f0f0;
                 border: 1px solid #cccccc;
                 border-radius: 4px;
-                /* min-height: 150px; */ /* 可根据内容调整 */
+                /* min-height: 150px; */
             }
             QLabel {
-                font-size: 14px;
+                font-size: 25px;
                 color: #333;
                 padding-bottom: 5px;
                 font-weight: bold;
@@ -136,11 +136,10 @@ class ClusteringPage(QWidget):
             QListWidget#submissionList {
                 background-color: white;
                 border: 1px solid #bbbbbb;
-                font-size: 15px;
+                font-size: 25px;
             }
-            /* 如果仍允许选择，可以保留选中样式 */
             QListWidget#submissionList::item:selected {
-                 background-color: #e0e0e0; /* 可以改为灰色或移除 */
+                 background-color: #e0e0e0;
                  color: black;
             }
         ''')
@@ -212,7 +211,7 @@ class ClusteringPage(QWidget):
                                  border: 1px solid #bbbbbb;
                                  border-radius: 3px;
                             }
-                            QLabel { margin-bottom: 2px; font-size: 15px; color: #333;}
+                            QLabel { margin-bottom: 2px; font-size: 25px; color: #333;}
                             QComboBox#function_selector { min-height: 22px; }
                         ''')
         # 固定下拉区域的高度，使其紧凑
@@ -244,7 +243,7 @@ class ClusteringPage(QWidget):
                         border: 1px solid #aaaaaa;
                         min-height: 200px; /* 最小高度 */
                     }
-                    QLabel { font-size: 14px; color: #555; }
+                    QLabel { font-size: 24px; color: #555; }
                 ''')
         parent_splitter.addWidget(self.parameter_settings_area)
 
@@ -390,7 +389,7 @@ class ClusteringPage(QWidget):
     def _plot_main_signal(self, signal_data, peak_indices, cluster_labels, ylabel):
         """绘制主信号和聚类峰值"""
         print("绘制主信号图...")
-        figure, canvas = self._create_figure_canvas(fixed_height=600)  # 主图高一点
+        figure, canvas = self._create_figure_canvas(fixed_height=700)  # 主图高一点
         # ax = figure.add_subplot(111)
         #
         # # 绘制原始信号
@@ -484,10 +483,10 @@ class ClusteringPage(QWidget):
                 ax.plot(peak_idx, signal_data[peak_idx], 'o', markersize=6, color=color, zorder=2)
 
         # 设置标题、标签等
-        ax.set_title(f'{self.function_selector.currentText()} 聚类结果 - 主信号图', fontproperties=get_chinese_font())
+        ax.set_title(f'{self.function_selector.currentText()} 聚类结果 - 主信号图', fontproperties=get_chinese_font(),fontsize=18)
         ax.set_xlabel("时间点", fontproperties=get_chinese_font())
         ax.set_ylabel(ylabel if ylabel else "幅值", fontproperties=get_chinese_font())
-        ax.legend(prop=get_chinese_font())
+        ax.legend(prop=get_chinese_font(),fontsize=14)
         ax.grid(True, linestyle='--', alpha=0.6)
 
         figure.tight_layout()
@@ -503,7 +502,7 @@ class ClusteringPage(QWidget):
         signal_len = len(signal_data)
 
         for label in unique_labels:
-            figure, canvas = self._create_figure_canvas(fixed_height=300)  # 平均波形图可以矮一点
+            figure, canvas = self._create_figure_canvas(fixed_height=500)
             ax = figure.add_subplot(111)
 
             cluster_peak_indices = peak_indices[cluster_labels == label]
@@ -553,9 +552,9 @@ class ClusteringPage(QWidget):
             ax.fill_between(time_axis, avg_waveform - std_waveform, avg_waveform + std_waveform,
                             color=color, alpha=0.2, label='±1 标准差')
 
-            ax.set_title(f'类别 {label} - 平均峰值波形', fontproperties=get_chinese_font())
-            ax.set_xlabel("时间", fontproperties=get_chinese_font())
-            ax.set_ylabel("电流", fontproperties=get_chinese_font())
+            ax.set_title(f'类别 {label} - 平均峰值波形', fontproperties=get_chinese_font(),fontsize=18)
+            ax.set_xlabel("时间", fontproperties=get_chinese_font(),fontsize=14)
+            ax.set_ylabel("电流", fontproperties=get_chinese_font(),fontsize=14)
             ax.legend(prop=get_chinese_font())
             ax.grid(True, linestyle='--', alpha=0.6)
             figure.tight_layout()
@@ -565,7 +564,7 @@ class ClusteringPage(QWidget):
     def _plot_feature_scatter(self, peak_features, cluster_labels, unique_labels, x_idx, y_idx, x_name, y_name):
         """绘制峰值特征的散点图"""
         print(f"绘制特征散点图 ({x_name} vs {y_name})...")
-        figure, canvas = self._create_figure_canvas(fixed_height=350)
+        figure, canvas = self._create_figure_canvas(fixed_height=500)
         ax = figure.add_subplot(111)
 
         colors = self._get_cluster_colors(len(unique_labels))
@@ -580,9 +579,9 @@ class ClusteringPage(QWidget):
                 ax.scatter(features_subset[:, x_idx], features_subset[:, y_idx],
                            color=color, label=f'类别 {label}', alpha=0.7, edgecolors='w', s=50)  # s是点的大小
 
-        ax.set_title('峰值特征散点图', fontproperties=get_chinese_font())
-        ax.set_xlabel(x_name, fontproperties=get_chinese_font())
-        ax.set_ylabel(y_name, fontproperties=get_chinese_font())
+        ax.set_title('峰值特征散点图', fontproperties=get_chinese_font(),fontsize=18)
+        ax.set_xlabel(x_name, fontproperties=get_chinese_font(),fontsize=14)
+        ax.set_ylabel(y_name, fontproperties=get_chinese_font(),fontsize=14)
         ax.legend(prop=get_chinese_font())
         ax.grid(True, linestyle='--', alpha=0.6)
         figure.tight_layout()
@@ -598,7 +597,7 @@ class ClusteringPage(QWidget):
         # 为每个特征创建一个图
         for feat_idx in range(num_features):
             figure, canvas = self._create_figure_canvas(figsize=(max(6, len(unique_labels) * 0.8), 4),
-                                                        fixed_height=300)  # 根据类别数量调整宽度
+                                                        fixed_height=500)  # 根据类别数量调整宽度
             ax = figure.add_subplot(111)
 
             data_to_plot = []
@@ -640,8 +639,8 @@ class ClusteringPage(QWidget):
             for median in bp['medians']:
                 median.set_color('black')
 
-            ax.set_title(f'特征 "{feature_names[feat_idx]}" 按类别分布', fontproperties=get_chinese_font())
-            ax.set_ylabel(feature_names[feat_idx], fontproperties=get_chinese_font())
+            ax.set_title(f'特征 "{feature_names[feat_idx]}" 按类别分布', fontproperties=get_chinese_font(),fontsize=18)
+            ax.set_ylabel(feature_names[feat_idx], fontproperties=get_chinese_font(),fontsize=14)
             # ax.set_xlabel("聚类类别", fontproperties=get_chinese_font())
             # 如果类别标签太长或太多，旋转它们
             if len(plot_labels) > 5:
