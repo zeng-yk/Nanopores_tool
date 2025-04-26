@@ -2,6 +2,7 @@
 import csv
 import json
 import os
+import sys
 import time
 import traceback
 import pyabf
@@ -20,6 +21,11 @@ from PyQt5.QtCore import QThread
 from load_worker import LoadWorker  # 导入多线程
 import platform
 
+def resource_path(relative_path):
+    """打包后能正确找到资源文件"""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
 
 def get_chinese_font():
     system = platform.system()
@@ -79,11 +85,11 @@ class AnalysisPage(QWidget):
 
         btn_layout = QHBoxLayout()
         self.add_button = QPushButton()
-        self.add_button.setIcon(QIcon("media/导入.svg"))
+        self.add_button.setIcon(QIcon(resource_path("media/导入.svg")))
         self.add_button.setToolTip("导入文件")
 
         self.remove_button = QPushButton()
-        self.remove_button.setIcon(QIcon("media/文本剔除.svg"))
+        self.remove_button.setIcon(QIcon(resource_path("media/文本剔除.svg")))
         self.remove_button.setToolTip("删除选中项")
 
         btn_layout.addWidget(self.add_button)
