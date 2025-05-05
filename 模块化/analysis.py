@@ -1161,7 +1161,7 @@ class AnalysisPage(QWidget):
             try:
                 extracted_data["prominence"] = self.prominences[peak_list_index]
             except IndexError:
-                print(f"Helper: Warning - Index out of bounds for prominence at peak {peak_list_index}")
+                print(f"警告：第 {peak_list_index} 个峰的显著性计算中索引越界")
 
         # --- 设置图形属性 ---
         title_text = f"{peak_label_str} {peak_list_index + 1} (全局索引 {peak_global_idx})"
@@ -1170,7 +1170,6 @@ class AnalysisPage(QWidget):
         ax.set_title(title_text, fontproperties=font_prop, fontsize=9)
         ax.set_xlabel("时间/索引" if self.chinese_font else "Time/Index", fontproperties=font_prop)
         ax.set_ylabel("幅值" if self.chinese_font else "Amplitude", fontproperties=font_prop)
-        # Only add legend if there are labeled elements
         handles, labels = ax.get_legend_handles_labels()
         if handles:
             ax.legend(handles=handles, labels=labels, prop=font_prop if font_prop else None, fontsize=7)
