@@ -30,6 +30,11 @@ try:
 except ImportError:
     pyabf = None
 
+def resource_path(relative_path):
+    """打包后能正确找到资源文件"""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
 
 class DataViewer(QMainWindow):
     def __init__(self):
@@ -79,11 +84,11 @@ class DataViewer(QMainWindow):
         # 按钮区域（水平排列）
         btn_layout = QHBoxLayout()
         self.import_button = QPushButton()
-        self.import_button.setIcon(QIcon("media/导入.svg"))  # 你可以换成你自己的图片
+        self.import_button.setIcon(QIcon(resource_path("media/导入.svg")))  # 你可以换成你自己的图片
         self.import_button.setToolTip("导入文件")
 
         self.delete_button = QPushButton()
-        self.delete_button.setIcon(QIcon("media/文本剔除.svg"))
+        self.delete_button.setIcon(QIcon(resource_path("media/文本剔除.svg")))
         self.delete_button.setToolTip("删除选中项")
 
         btn_layout.addWidget(self.import_button)
@@ -309,28 +314,28 @@ class DataViewer(QMainWindow):
         right_toolbar_layout.setAlignment(Qt.AlignTop)  # 按钮顶部对齐
 
         self.button_view_data = QPushButton()  # 对应第一个页面
-        self.button_view_data.setIcon(QIcon("media/折线图.svg"))
+        self.button_view_data.setIcon(QIcon(resource_path("media/折线图.svg")))
         self.button_view_data.setToolTip('数据视图')
         self.button_view_data.setCheckable(True)
         self.button_view_data.setChecked(True)  # 默认选中
 
         self.button_view_analysis = QPushButton()  # 对应第二个页面
-        self.button_view_analysis.setIcon(QIcon("media/分析.svg"))
+        self.button_view_analysis.setIcon(QIcon(resource_path("media/分析.svg")))
         self.button_view_analysis.setToolTip('波形分析')
         self.button_view_analysis.setCheckable(True)
 
         self.button_view_clustering = QPushButton()  # 对应第三个页面
-        self.button_view_clustering.setIcon(QIcon("media/聚类.svg"))
+        self.button_view_clustering.setIcon(QIcon(resource_path("media/聚类.svg")))
         self.button_view_clustering.setToolTip('聚类')
         self.button_view_clustering.setCheckable(True)
 
         self.button_view_predict = QPushButton()  # 对应第四个页面
-        self.button_view_predict.setIcon(QIcon("media/推理.svg"))
+        self.button_view_predict.setIcon(QIcon(resource_path("media/推理.svg")))
         self.button_view_predict.setToolTip('预测')
         self.button_view_predict.setCheckable(True)
 
         self.button_view_settings = QPushButton()  # 对应第五个页面
-        self.button_view_settings.setIcon(QIcon("media/设置.svg"))
+        self.button_view_settings.setIcon(QIcon(resource_path("media/设置.svg")))
         self.button_view_settings.setToolTip('设置')
         self.button_view_settings.setCheckable(True)
 
@@ -391,7 +396,7 @@ class DataViewer(QMainWindow):
         main_layout.addWidget(self.main_stack, 1)  # StackedWidget 占据主要空间 (拉伸因子=1)
         main_layout.addWidget(right_toolbar_widget, 0)  # 右侧工具栏宽度固定 (拉伸因子=0)
 
-        font_size = "14px"  # 例如，设置为 14 像素
+        font_size = "25px"
         self.setStyleSheet(f"""
                 ClusteringPage {{ /* 应用于整个页面，可以设置一个基础字体 */
                     /* font-size: {font_size}; */ /* 取消注释以设置全局默认值 */
