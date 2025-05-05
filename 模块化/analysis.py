@@ -1003,39 +1003,37 @@ class AnalysisPage(QWidget):
                    dict: 包含该峰详细信息的字典，用于保存。
         """
         if self.peaks is None or not (0 <= peak_list_index < len(self.peaks)):
-            print(f"Error (helper): Invalid peak_list_index: {peak_list_index}")
+            print(f"错误: 需绘制的识别峰: {peak_list_index} 超出最大可能长度")
             return False, {}
 
         peak_global_idx = self.peaks[peak_list_index]
         if not (0 <= peak_global_idx < self.data_length):
-            print(f"Error (helper): Invalid global index {peak_global_idx} for list index {peak_list_index}")
+            print(f"错误: 需绘制的峰：{peak_list_index}，不存在对应的峰型数据索引： {peak_global_idx}")
             return False, {}
 
         # --- 确定窗口 (使用与 plot_single_peak 相似的固定窗口或之前的动态逻辑) ---
-        # 为了严格匹配 plot_single_peak 的示例，我们使用固定窗口
-        # 如果需要动态窗口，可以取消注释下面的 width_data_90 部分
         window_half_width = 100  # 与 plot_single_peak 示例中的 window = 100 对应 (半宽)
         start_idx = max(0, int(peak_global_idx - window_half_width))
-        end_idx = min(self.data_length, int(peak_global_idx + window_half_width + 1))  # +1 for slicing end point
+        end_idx = min(self.data_length, int(peak_global_idx + window_half_width + 1))
         x_window = self.full_x[start_idx:end_idx]
         y_window = self.full_y[start_idx:end_idx]
 
         if len(x_window) == 0:
-            print(f"Error (helper): Empty window data for peak {peak_list_index}")
+            print(f"错误: 需绘制的峰： {peak_list_index}没有数据")
             return False, {}
 
         # --- 定位峰在窗口内的索引 ---
         peak_local_idx = peak_global_idx - start_idx
         # 验证并重新定位 (如果计算出的索引无效或想更精确)
         if not (0 <= peak_local_idx < len(y_window)):
-            print(f"Warning (helper): Calculated local index {peak_local_idx} out of bounds. Re-finding in window.")
-            if self.Positive:  # Find maximum for peaks
+            print(f"警告：计算出的局部索引 {peak_local_idx} 超出范围，正在重新在窗口中定位。")
+            if self.Positive:  # 如果是波峰，寻找最大值
                 peak_local_idx = np.argmax(y_window)
-            else:  # Find minimum for valleys
+            else:  # 如果是波谷，寻找最小值
                 peak_local_idx = np.argmin(y_window)
-            # Final check
+            # 最后检查
             if not (0 <= peak_local_idx < len(y_window)):
-                print(f"Error (helper): Could not reliably find peak within the window for peak {peak_list_index}.")
+                print(f"错误：无法在窗口中可靠地定位第 {peak_list_index} 个峰。")
                 return False, {}
 
         peak_x_val = x_window[peak_local_idx]
@@ -1048,25 +1046,24 @@ class AnalysisPage(QWidget):
         results_full_local = None
         results_half_local = None
         try:
-            # Note: peak_widths needs peak indices as a list/array
+            # 注意：peak_widths 需要传入索引列表/数组
             results_full_local = peak_widths(inverted_window_y, [peak_local_idx], rel_height=0.9)
         except ValueError as e:
-            print(f"Helper: Warning - Could not calculate 90% width for peak {peak_list_index} in window: {e}")
-        except Exception as e:  # Catch other potential errors
-            print(f"Helper: Warning - Unexpected error calculating 90% width for peak {peak_list_index}: {e}")
+            print(f"警告：无法为窗口中的第 {peak_list_index} 个峰计算 90% 宽度：{e}")
+        except Exception as e:  # 捕获其他可能的错误
+            print(f"警告：计算第 {peak_list_index} 个峰的 90% 宽度时出现意外错误：{e}")
 
         try:
             results_half_local = peak_widths(inverted_window_y, [peak_local_idx], rel_height=0.5)
         except ValueError as e:
-            print(f"Helper: Warning - Could not calculate 50% width for peak {peak_list_index} in window: {e}")
+            print(f"警告：无法为窗口中的第 {peak_list_index} 个峰计算 50% 宽度：{e}")
         except Exception as e:
-            print(f"Helper: Warning - Unexpected error calculating 50% width for peak {peak_list_index}: {e}")
-
+            print(f"警告：计算第 {peak_list_index} 个峰的 50% 宽度时出现意外错误：{e}")
         # --- 绘图 ---
         signal_color = self.btn_color1.color
-        peak_color = "#FF0000"
-        width_line_color_90 = self.btn_color2.color  # Use color 3 for 90%
-        width_line_color_50 = self.btn_color3.color  # Example: Gold/Yellow for 50% (like plot_single_peak)
+        peak_color = "#FF0000" # 红色
+        width_line_color_90 = self.btn_color2.color
+        width_line_color_50 = self.btn_color3.color
 
         peak_label_str = "波峰" if self.Positive else "波谷"
         if not self.chinese_font: peak_label_str = "Peak" if self.Positive else "Valley"
@@ -1081,7 +1078,7 @@ class AnalysisPage(QWidget):
             "peak_index_in_list": peak_list_index + 1,
             "peak_x": peak_x_val,
             "peak_y": peak_y_val,
-            "prominence": None,  # Will be filled later from self.prominences
+            "prominence": None,
             "width_90": None, "width_90_y_level": None, "width_90_left_x": None, "width_90_right_x": None,
             "width_50": None, "width_50_y_level": None, "width_50_left_x": None, "width_50_right_x": None,
             "x_window": x_window.tolist(),
@@ -1090,24 +1087,24 @@ class AnalysisPage(QWidget):
             "window_end_index": end_idx,
         }
 
-        # --- 绘制宽度线 (使用局部计算结果) ---
+        # --- 绘制宽度线（使用局部计算结果）---
         if results_full_local and results_full_local[0] is not None and len(results_full_local[0]) > 0:
             try:
-                # Indices are relative to the window start (start_idx)
-                left_ips_local = int(np.floor(results_full_local[2][0]))  # Floor for safety indexing x_window
-                right_ips_local = int(np.ceil(results_full_local[3][0]))  # Ceil for safety indexing x_window
-                # Ensure indices are within the bounds of x_window
+                # 索引是相对于窗口起点（start_idx）计算的
+                left_ips_local = int(np.floor(results_full_local[2][0]))  # 向下取整，保证索引在 x_window 范围内
+                right_ips_local = int(np.ceil(results_full_local[3][0]))  # 向上取整，保证索引在 x_window 范围内
+                # 确保索引在 x_window 的合法范围内
                 left_ips_local = max(0, left_ips_local)
                 right_ips_local = min(len(x_window) - 1, right_ips_local)
 
-                height_level_local = results_full_local[1][0]  # Height level from peak_widths result
+                height_level_local = results_full_local[1][0]  # 从 peak_widths 结果中获取高度值
 
-                # Get corresponding X coordinates from the window's X data
+                # 从 X 数据中获取对应的 X 坐标
                 left_x = x_window[left_ips_local]
                 right_x = x_window[right_ips_local]
 
-                # Determine the actual Y level on the plot
-                # Height returned by peak_widths is relative to the baseline of the signal fed to it (inverted_window_y)
+                # 确定图像上的实际 Y 位置
+                # peak_widths 返回的高度是相对于输入信号（inverted_window_y）的基线
                 actual_y_level = -height_level_local if not self.Positive else height_level_local
 
                 label_90 = "90%宽度  " if self.chinese_font else "Width @ 90%"
@@ -1116,21 +1113,21 @@ class AnalysisPage(QWidget):
                 ax.plot([left_x, right_x], [actual_y_level, actual_y_level], '|', color=width_line_color_90,
                         markersize=10)
 
-                # Populate extracted_data
+                # 填充提取数据
                 extracted_data["width_90"] = right_x - left_x
                 extracted_data["width_90_y_level"] = actual_y_level
                 extracted_data["width_90_left_x"] = left_x
                 extracted_data["width_90_right_x"] = right_x
 
             except IndexError as e:
-                print(f"Helper: Error processing 90% width indices for peak {peak_list_index}: {e}")
+                print(f"辅助函数：错误 - 处理第 {peak_list_index} 个峰的 90% 宽度索引时发生索引错误：{e}")
             except Exception as e:
-                print(f"Helper: Error plotting 90% width for peak {peak_list_index}: {e}")
+                print(f"辅助函数：错误 - 绘制第 {peak_list_index} 个峰的 90% 宽度时发生异常：{e}")
 
-        # 50% Width (matches 'results_half' in plot_single_peak)
+        # 50% 宽度（对应于 plot_single_peak 中的 'results_half'）
         if results_half_local and results_half_local[0] is not None and len(results_half_local[0]) > 0:
             try:
-                # Indices are relative to the window start (start_idx)
+                # 索引是相对于窗口起点（start_idx）计算的
                 left_ips_local = int(np.floor(results_half_local[2][0]))
                 right_ips_local = int(np.ceil(results_half_local[3][0]))
                 left_ips_local = max(0, left_ips_local)
@@ -1148,15 +1145,16 @@ class AnalysisPage(QWidget):
                 ax.plot([left_x, right_x], [actual_y_level, actual_y_level], '|', color=width_line_color_50,
                         markersize=10)
 
+                # 填充提取数据
                 extracted_data["width_50"] = right_x - left_x
                 extracted_data["width_50_y_level"] = actual_y_level
                 extracted_data["width_50_left_x"] = left_x
                 extracted_data["width_50_right_x"] = right_x
 
             except IndexError as e:
-                print(f"Helper: Error processing 50% width indices for peak {peak_list_index}: {e}")
+                print(f"辅助函数：错误 - 处理第 {peak_list_index} 个峰的 50% 宽度索引时发生索引错误：{e}")
             except Exception as e:
-                print(f"Helper: Error plotting 50% width for peak {peak_list_index}: {e}")
+                print(f"辅助函数：错误 - 绘制第 {peak_list_index} 个峰的 50% 宽度时发生异常：{e}")
 
         # 提取突出度
         if hasattr(self, 'prominences') and self.prominences is not None and len(self.prominences) > peak_list_index:
