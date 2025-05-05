@@ -836,7 +836,7 @@ class AnalysisPage(QWidget):
                     temp_fig, temp_ax = plt.subplots(figsize=(4, 3))  # 创建临时图
                     # (复用 plot_single_peak 的窗口计算和绘图逻辑，但绘制到 temp_ax 上)
                     # 这里简化，直接调用一个辅助函数或复制代码片段
-                    plot_success, extracted_data = self._generate_single_peak_figure_and_data(i, temp_ax)
+                    plot_success, extracted_data = self.generate_single_peak_figure_and_data(i, temp_ax)
 
                     if plot_success:
                         peak_filename_base = f"peak_{i + 1:04d}"  # 格式化文件名，如 peak_0001
@@ -990,7 +990,7 @@ class AnalysisPage(QWidget):
             traceback.print_exc()
             QMessageBox.critical(self, "保存失败", f"保存过程中发生未知错误:\n{e_main}")
 
-    def _generate_single_peak_figure_and_data(self, peak_list_index, ax):
+    def generate_single_peak_figure_and_data(self, peak_list_index, ax):
         """
         辅助函数：为指定索引的峰生成图形（在传入的 Axes 上）并提取相关数据。
         **采用局部窗口计算宽度的方式，与 plot_single_peak 保持一致。**
