@@ -152,8 +152,9 @@ class DataViewerUI:
         self.function_area2.setLayout(func2_layout)
         self.function_area2.setStyleSheet('''
             QWidget#function_area2 {
-                background-color: rgb(240, 240, 240);
-                border: 1px solid black;
+                background-color: #f5f5f5;
+                border: 1px solid #999;
+                border-radius: 4px;
             }
         ''')
         self.function_area2.setMaximumHeight(300)
@@ -189,9 +190,43 @@ class DataViewerUI:
         page1.setLayout(layout1)
         self.page_tabs.addTab(page1, "数据图")
 
-        page2 = QLabel("这是第二页...")
-        page2.setAlignment(Qt.AlignCenter)
-        self.page_tabs.addTab(page2, "其他功能")
+        # === 第二页：统计与直方图 ===
+        self.stats_page = QWidget()
+        self.stats_layout = QVBoxLayout(self.stats_page)
+
+        # 1. 统计信息栏
+        stats_info_layout = QHBoxLayout()
+        self.lbl_mean = QLabel("均值: N/A")
+        self.lbl_std = QLabel("标准差: N/A")
+        self.lbl_min = QLabel("最小值: N/A")
+        self.lbl_max = QLabel("最大值: N/A")
+        
+        # 设置字体大小
+        for lbl in [self.lbl_mean, self.lbl_std, self.lbl_min, self.lbl_max]:
+            lbl.setStyleSheet("font-size: 16px; margin-right: 15px;")
+
+        stats_info_layout.addWidget(self.lbl_mean)
+        stats_info_layout.addWidget(self.lbl_std)
+        stats_info_layout.addWidget(self.lbl_min)
+        stats_info_layout.addWidget(self.lbl_max)
+        stats_info_layout.addStretch()
+
+        self.btn_refresh_stats = QPushButton("刷新统计")
+        self.btn_refresh_stats.setToolTip("基于当前主图视图范围计算统计数据")
+        stats_info_layout.addWidget(self.btn_refresh_stats)
+
+        self.stats_layout.addLayout(stats_info_layout)
+
+        # 2. 直方图
+        self.histogram_plot = pg.PlotWidget(name="Histogram")
+        self.histogram_plot.setBackground('w')
+        self.histogram_plot.setTitle("幅值直方图 (当前视图)", color='k', size='12pt')
+        self.histogram_plot.setLabel('left', '计数', color='k')
+        self.histogram_plot.setLabel('bottom', '幅值', color='k')
+        self.histogram_plot.showGrid(x=True, y=True, alpha=0.3)
+        self.stats_layout.addWidget(self.histogram_plot)
+
+        self.page_tabs.addTab(self.stats_page, "统计分析")
 
         self.coord_label = QLabel("坐标: N/A")
         self.coord_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
@@ -204,7 +239,8 @@ class DataViewerUI:
         internal_splitter = QSplitter(Qt.Horizontal)
         internal_splitter.addWidget(left_splitter)
         internal_splitter.addWidget(center_widget)
-        internal_splitter.setSizes([480, 1920])
+        internal_splitter.setSizes([400, 2000])
+        internal_splitter.setCollapsible(0, False)
 
         # 区域选择控件
         self.region = pg.LinearRegionItem()
@@ -242,12 +278,17 @@ class DataViewerUI:
         self.button_view_clustering.setToolTip('聚类')
         self.button_view_clustering.setCheckable(True)
 
-        self.button_view_predict = QPushButton()  # 对应第四个页面
+        self.button_view_train = QPushButton()  # 对应第四个页面
+        self.button_view_train.setIcon(QIcon(resource_path("media/模型训练.svg")))
+        self.button_view_train.setToolTip('训练')
+        self.button_view_train.setCheckable(True)
+
+        self.button_view_predict = QPushButton()  # 对应第五个页面
         self.button_view_predict.setIcon(QIcon(resource_path("media/推理.svg")))
         self.button_view_predict.setToolTip('预测')
         self.button_view_predict.setCheckable(True)
 
-        self.button_view_settings = QPushButton()  # 对应第五个页面
+        self.button_view_settings = QPushButton()  # 对应第六个页面
         self.button_view_settings.setIcon(QIcon(resource_path("media/设置.svg")))
         self.button_view_settings.setToolTip('设置')
         self.button_view_settings.setCheckable(True)
@@ -257,13 +298,15 @@ class DataViewerUI:
         self.toolbar_button_group.addButton(self.button_view_data, 0)  # 关联索引 0
         self.toolbar_button_group.addButton(self.button_view_analysis, 1)  # 关联索引 1
         self.toolbar_button_group.addButton(self.button_view_clustering, 2)  # 关联索引 2
-        self.toolbar_button_group.addButton(self.button_view_predict, 3)  # 关联索引 3
-        self.toolbar_button_group.addButton(self.button_view_settings, 4)  # 关联索引 4
+        self.toolbar_button_group.addButton(self.button_view_train, 3)  # 关联索引 3
+        self.toolbar_button_group.addButton(self.button_view_predict, 4)  # 关联索引 4
+        self.toolbar_button_group.addButton(self.button_view_settings, 5)  # 关联索引 5
         self.toolbar_button_group.setExclusive(True)
 
         right_toolbar_layout.addWidget(self.button_view_data)
         right_toolbar_layout.addWidget(self.button_view_analysis)
         right_toolbar_layout.addWidget(self.button_view_clustering)
+        right_toolbar_layout.addWidget(self.button_view_train)
         right_toolbar_layout.addWidget(self.button_view_predict)
         right_toolbar_layout.addWidget(self.button_view_settings)
 

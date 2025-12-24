@@ -76,18 +76,19 @@ class AnalysisUI:
 
         # 样式
         self.data_load.setStyleSheet('''
-                    QWidget#data_load {
-                        background-color: #f5f5f5;
-                        border: 1px solid #999;
-                    }
-                    QListWidget {
-                        border: 1px solid #ccc;
-                    }
-                    QListWidget#file_list::item:selected {
-                        background-color: #e0e0e0;
-                        color: black;
-                    }
-                ''')
+            QWidget#data_load {
+                background-color: #f5f5f5;
+                border: 1px solid #999;
+                border-radius: 4px;
+            }
+            QListWidget {
+                border: 1px solid #ccc;
+            }
+            QListWidget#file_list::item:selected {
+                background-color: #e0e0e0;
+                color: black;
+            }
+        ''')
 
         self.data_load.setLayout(data_load_layout)
         self.data_load.setMaximumHeight(700)
@@ -223,10 +224,10 @@ class AnalysisUI:
         # 图1区 (Empty Placeholder with navigation)
         plot1_container_widget = QWidget()
         plot1_container_layout = QVBoxLayout(plot1_container_widget)
-        plot1_container_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
+        plot1_container_layout.setContentsMargins(0, 0, 0, 0) 
 
         plot1_nav_layout = QHBoxLayout()
-        plot1_nav_layout.addStretch()  # Push buttons to the right
+        plot1_nav_layout.addStretch()
         self.prev_plot1_button = QPushButton("<")
         self.next_plot1_button = QPushButton(">")
 
@@ -267,15 +268,19 @@ class AnalysisUI:
         right_section_layout.setStretchFactor(self.main_plot, 2)
         right_section_layout.setStretchFactor(bottom_right_splitter, 1)
 
-        main_layout.addWidget(left_splitter)
-        main_layout.addWidget(right_section_widget)
-        main_layout.setStretch(0,2)
-        main_layout.setStretch(1,8)
+        # 使用 QSplitter 替代原来的布局方式，统一 1:5 比例
+        main_splitter = QSplitter(Qt.Horizontal)
+        main_splitter.addWidget(left_splitter)
+        main_splitter.addWidget(right_section_widget)
+        main_splitter.setSizes([400, 2000])
+        main_splitter.setCollapsible(0, False)
+
+        main_layout.addWidget(main_splitter)
 
     @staticmethod
     def add_label(name):
         label = QLabel(name)
-        label.setFixedWidth(100)
+        # label.setFixedWidth(100) # Removed fixed width for responsiveness
         return label
 
     @staticmethod

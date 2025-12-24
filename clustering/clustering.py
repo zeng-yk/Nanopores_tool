@@ -4,16 +4,45 @@ Clustering 模块的主要功能逻辑实现
 import os
 import re
 import time
+import pickle
 import traceback
 import numpy as np
 from PyQt5.QtWidgets import QWidget, QMessageBox, QProgressDialog, QFileDialog, QApplication
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QInputDialog
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 from .UI import ClusteringUI, get_chinese_font
 from clustering.algorithms import Algorithms
 from parameter_widgets import BaseParameterWidget
+
+
+# 定义一个简单的对话框类，用于给每个 Cluster 命名
+class ClusterLabelDialog(QDialog):
+    def __init__(self, n_clusters, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("定义类别标签")
+        self.layout = QFormLayout(self)
+        self.inputs = {}
+
+        for i in range(n_clusters):
+            le = QLineEdit(f"Cluster {i}")
+            self.inputs[i] = le
+            self.layout.addRow(f"类别 {i} 名称:", le)
+
+        self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        self.layout.addRow(self.buttons)
+
+    def get_labels(self):
+        """返回 {0: '名字', 1: '名字'}"""
+        mapping = {}
+        for i, le in self.inputs.items():
+            text = le.text().strip()
+            mapping[i] = text if text else f"Cluster {i}"
+        return mapping
 
 
 class ClusteringPage(QWidget):
@@ -31,6 +60,8 @@ class ClusteringPage(QWidget):
         self.peaks_for_plot = None
         self.labels_for_plot = None
         self.features_for_plot = None
+
+        self.current_model = None  # 新增：用于临时存储当前训练好的模型
 
         # 初始化UI
         self.ui = ClusteringUI(self)
@@ -50,6 +81,8 @@ class ClusteringPage(QWidget):
         # 按钮点击信号
         self.ui.button.clicked.connect(self.run_selected_algorithm)
         self.ui.save_button.clicked.connect(self.save_data)
+        if hasattr(self.ui, 'save_model_button'):
+            self.ui.save_model_button.clicked.connect(self.save_trained_model)
 
     def on_function_changed(self, index):
         """下拉列表选项改变时的处理函数"""
@@ -150,9 +183,16 @@ class ClusteringPage(QWidget):
             if selected_algorithm_name == "K-Means":
                 print("调用 KMeans 算法...")
                 result_tuple = Algorithms.run_kmeans(path_to_process, peaks_to_process, parameters)
-                if result_tuple and len(result_tuple) == 2:
-                    self.signal_for_plot, self.labels_for_plot = result_tuple
-                    self.peaks_for_plot = peaks_to_process
+                if result_tuple and len(result_tuple) == 4:
+                    self.signal_for_plot, labels_raw, self.current_model, valid_indices = result_tuple
+
+                    # 因为插值过滤了部分短波形，我们需要对齐 labels 和 peaks
+                    # valid_indices 是原始 peaks_to_process 中的下标
+                    self.peaks_for_plot = peaks_to_process[valid_indices]
+                    self.labels_for_plot = labels_raw
+
+                    # 更新 features_for_plot 也要对其
+                    self.features_for_plot = features_array[valid_indices]
                 else:
                     print("警告：KMeans 算法未按预期返回信号、标签。可能无法绘制所有图形。")
                     self.labels_for_plot = None  # 标记为无效结果
@@ -201,6 +241,58 @@ class ClusteringPage(QWidget):
             self.ui._display_plot_error(f"算法执行错误:\n{e}")
 
         print("--- 算法运行与绘图更新结束 ---")
+
+    # 新增：保存模型的方法
+    def save_trained_model(self):
+        if self.current_model is None:
+            QMessageBox.warning(self, "无模型", "请先运行 K-Means 算法生成模型。")
+            return
+
+        # 1. 输入模型名称
+        name, ok = QInputDialog.getText(self, "保存模型", "请输入模型名称:")
+        if not ok or not name.strip():
+            return
+
+        # 2. 弹出对话框，配置类别标签
+        # 获取 cluster 数量
+        n_clusters = self.current_model.n_clusters
+        dialog = ClusterLabelDialog(n_clusters, self)
+        if dialog.exec_() == QDialog.Accepted:
+            label_map = dialog.get_labels()
+
+            # 3. 保存到磁盘
+            model_info = {
+                'name': name.strip(),
+                'type': 'KMeans',
+                'model_obj': self.current_model,
+                'label_map': label_map,
+                'timestamp': time.time()
+            }
+            
+            try:
+                # 使用 DataManager 的 model_dir
+                # 简单的文件名清洗，防止非法字符
+                safe_name = "".join([c for c in name.strip() if c.isalnum() or c in (' ', '.', '_', '-')]).rstrip()
+                if not safe_name:
+                    safe_name = "model"
+                
+                filename = f"{safe_name}.pkl"
+                save_path = os.path.join(self.data_manager.model_dir, filename)
+                
+                with open(save_path, 'wb') as f:
+                    pickle.dump(model_info, f)
+                
+                print(f"模型已保存至: {save_path}")
+                
+                # 通知 DataManager 重新加载模型
+                self.data_manager.load_models_from_disk()
+                
+                QMessageBox.information(self, "成功", f"模型 '{name}' 已保存至磁盘，可用于推测页面。")
+                
+            except Exception as e:
+                print(f"保存模型失败: {e}")
+                traceback.print_exc()
+                QMessageBox.critical(self, "错误", f"保存模型失败: {e}")
 
     def _clear_plot_layout(self):
         """清除滚动区域布局中的所有旧图形"""
@@ -338,7 +430,8 @@ class ClusteringPage(QWidget):
                 ax.plot(peak_idx, signal_data[peak_idx], 'o', markersize=6, color=color, zorder=2)
 
         # 设置标题、标签等
-        ax.set_title(f'{self.ui.function_selector.currentText()} 聚类结果 - 主信号图', fontproperties=get_chinese_font(), fontsize=18)
+        ax.set_title(f'{self.ui.function_selector.currentText()} 聚类结果 - 主信号图',
+                     fontproperties=get_chinese_font(), fontsize=18)
         ax.set_xlabel("时间点", fontproperties=get_chinese_font())
         ax.set_ylabel(ylabel if ylabel else "幅值", fontproperties=get_chinese_font())
         ax.legend(prop=get_chinese_font(), fontsize=14)
@@ -421,7 +514,7 @@ class ClusteringPage(QWidget):
         # 为每个特征创建一个图
         for feat_idx in range(num_features):
             figure, canvas = self.ui._create_figure_canvas(figsize=(max(6, len(unique_labels) * 0.8), 4),
-                                                       fixed_height=500)  # 根据类别数量调整宽度
+                                                           fixed_height=500)  # 根据类别数量调整宽度
             ax = figure.add_subplot(111)
 
             data_to_plot = []
@@ -449,7 +542,7 @@ class ClusteringPage(QWidget):
 
             # 创建箱式图
             bp = ax.boxplot(data_to_plot, patch_artist=True,  # 允许填充颜色
-                            showfliers=False,)  # 不显示异常值点，让图更清晰
+                            showfliers=False, )  # 不显示异常值点，让图更清晰
 
             # 为每个箱子设置颜色
             for patch, color in zip(bp['boxes'], box_colors):

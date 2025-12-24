@@ -11,6 +11,8 @@ import pyabf
 import numpy as np
 from PyQt5.QtWidgets import QWidget, QListWidgetItem, QMessageBox, QInputDialog, QFileDialog, QLabel
 from PyQt5.QtCore import pyqtSignal, Qt, QThread, QTimer
+from PyQt5.QtWidgets import QProgressDialog, QApplication
+
 from scipy.signal import find_peaks, peak_prominences, peak_widths
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -416,53 +418,125 @@ class AnalysisPage(QWidget):
             self.plot_single_peak()
 
     def save_data(self):
-        """保存识别结果"""
+        """
+        保存数据，使用 QProgressDialog 显示进度（单线程模式）
+        """
         print("尝试保存识别结果...")
-        # 1. 检查是否有结果
+
+        # --- 1. 基础检查 ---
         if self.peaks is None or len(self.peaks) == 0:
-            QMessageBox.warning(self, "无法保存", "没有有效的峰值检测结果可供保存。请先运行检测。")
+            QMessageBox.warning(self, "无法保存", "没有有效的峰值检测结果。")
             return
         if not self.filepath:
-            QMessageBox.warning(self, "无法保存", "当前未加载有效的数据文件。")
+            QMessageBox.warning(self, "无法保存", "未加载文件。")
             return
 
-        # 2. 选择保存目录
+        # --- 2. 选择保存路径 ---
         default_dir = os.path.dirname(self.filepath)
         save_dir = QFileDialog.getExistingDirectory(self, "选择保存结果的文件夹", default_dir)
-
         if not save_dir:
-            print("用户取消保存。")
             return
 
-        # 3. 创建主文件夹名称
-        base_filename = os.path.splitext(os.path.basename(self.filepath))[0]
+        # --- 3. 准备文件夹 ---
+        base_name = os.path.splitext(os.path.basename(self.filepath))[0]
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        main_folder_name = f"{base_filename}_results_{timestamp}"
-        main_folder_path = os.path.join(save_dir, main_folder_name)
-
-        all_json_data = []
-        all_csv_data_rows = []
+        main_folder = os.path.join(save_dir, f"{base_name}_results_{timestamp}")
 
         try:
-            os.makedirs(main_folder_path, exist_ok=True)  # 创建主文件夹
-            print(f"结果将保存到: {main_folder_path}")
-
-            # 4. 创建子文件夹
-            main_plot_dir = os.path.join(main_folder_path, "main_plot")
-            single_plots_dir = os.path.join(main_folder_path, "single_peak_plots")
-            single_data_dir = os.path.join(main_folder_path, "single_peak_data")
+            os.makedirs(main_folder, exist_ok=True)
+            main_plot_dir = os.path.join(main_folder, "main_plot")
+            single_plot_dir = os.path.join(main_folder, "single_peak_plots")
             os.makedirs(main_plot_dir, exist_ok=True)
-            os.makedirs(single_plots_dir, exist_ok=True)
-            os.makedirs(single_data_dir, exist_ok=True)
+            os.makedirs(single_plot_dir, exist_ok=True)
 
-            # 这里应该有更多的保存逻辑，但在原始文件中未包含完整实现
-            # 完整版可以按需要添加导出为JSON、CSV等格式的代码
+            # --- 4. 初始化进度条弹窗 ---
+            total_peaks = len(self.peaks)
+            # 参数：标题，取消按钮文字，最小值，最大值，父窗口
+            progress = QProgressDialog("正在保存数据和图像...", "取消", 0, total_peaks, self)
+            progress.setWindowTitle("保存进度")
+            progress.setWindowModality(Qt.WindowModal)  # 模态，阻止用户点其他地方
+            progress.setMinimumDuration(0)  # 立即显示，不要等待
+            progress.show()
 
-            QMessageBox.information(self, "保存成功", f"结果已保存到:\n{main_folder_path}")
+            # --- 5. 保存主图 ---
+            # 直接保存界面上已经画好的图
+            self.ui.canvas.figure.savefig(os.path.join(main_plot_dir, "overview.png"), dpi=150)
+
+            # --- 6. 准备 CSV 和绘图数据 ---
+            csv_path = os.path.join(main_folder, "peak_summary.csv")
+            csv_file = open(csv_path, 'w', newline='', encoding='utf-8-sig')
+            writer = csv.writer(csv_file)
+            writer.writerow(["Index", "Time", "Amplitude", "Width", "Prominence", "Height"])
+
+            # 准备绘图需要的颜色和数据
+            signal_color = self.ui.btn_color1.color
+            c_90 = self.ui.btn_color2.color
+            c_50 = self.ui.btn_color3.color
+
+            # 获取宽度数据元组
+            all_widths = self.width[0] if self.width else []
+
+            # --- 7. 循环处理 ---
+            for i, peak_idx in enumerate(self.peaks):
+                # 检测用户是否点击了“取消”
+                if progress.wasCanceled():
+                    csv_file.close()
+                    QMessageBox.information(self, "提示", "保存已取消。")
+                    return
+
+                # A. 写入 CSV
+                p_time = self.full_x[peak_idx]
+                p_val = self.full_y[peak_idx]
+                p_w = all_widths[i] if len(all_widths) > i else 0
+                p_prom = self.prominences[i] if (self.prominences is not None and len(self.prominences) > i) else 0
+                p_h = self.height[i] if (self.height is not None and len(self.height) > i) else 0
+
+                writer.writerow([i + 1, p_time, p_val, p_w, p_prom, p_h])
+
+                # B. 绘制单张图 (使用 matplotlib 后端绘图，不显示在界面)
+                fig = Figure(figsize=(5, 4), dpi=100)
+                ax = fig.add_subplot(111)
+
+                window = 100
+                start = max(0, peak_idx - window)
+                end = min(len(self.full_y), peak_idx + window)
+                x_seg = self.full_x[start:end]
+                y_seg = self.full_y[start:end]
+
+                ax.plot(x_seg, y_seg, color=signal_color)
+
+                # 简单画一下宽度线（为了代码简短，这里仅做简单重算，如果不需要线可以删掉这段）
+                try:
+                    calc_sig = y_seg if self.Positive else -y_seg
+                    rel_peak = np.argmax(calc_sig)
+                    res = peak_widths(calc_sig, [rel_peak], rel_height=0.9)
+                    h_val = res[1][0] if self.Positive else -res[1][0]
+                    l, r = int(res[2][0]), int(res[3][0])
+                    # 简单防越界
+                    if 0 <= l < len(x_seg) and 0 <= r < len(x_seg):
+                        ax.hlines(h_val, x_seg[l], x_seg[r], color=c_90, linewidth=2)
+                except:
+                    pass
+
+                ax.set_title(f"Peak {i + 1}")
+                ax.grid(True)
+
+                # 保存并清除内存
+                fig.savefig(os.path.join(single_plot_dir, f"peak_{i + 1:04d}.png"))
+                fig.clear()  # 必须清理，否则内存爆炸
+
+                # C. 更新进度条 (关键！)
+                progress.setValue(i + 1)
+                # 强制刷新界面，防止“假死”
+                QApplication.processEvents()
+
+            csv_file.close()
+            progress.setValue(total_peaks)  # 跑满
+            QMessageBox.information(self, "保存成功", f"结果已保存至：\n{main_folder}")
 
         except Exception as e:
-            QMessageBox.critical(self, "保存失败", f"保存过程中发生错误:\n{str(e)}")
-            print(f"保存失败: {e}")
+            traceback.print_exc()
+            QMessageBox.critical(self, "保存失败", f"发生错误：{e}")
 
     def clear_plots(self):
         """清空图表"""

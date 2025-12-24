@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from matplotlib import font_manager
 import matplotlib
+
 matplotlib.use('Qt5Agg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -18,6 +19,7 @@ from parameter_widgets import (
     BaseParameterWidget, KMeansParameterWidget,
     DBSCANParameterWidget, PlaceholderParameterWidget
 )
+
 
 def get_chinese_font():
     system = platform.system()
@@ -30,8 +32,10 @@ def get_chinese_font():
 
     return font_manager.FontProperties(fname=font_path)
 
+
 class ClusteringUI:
     """聚类页面的UI构建类"""
+
     def __init__(self, parent):
         """
         初始化聚类页面UI
@@ -68,17 +72,26 @@ class ClusteringUI:
         self.save_button.setMaximumHeight(50)
         left_splitter.addWidget(self.save_button)
 
-        # 设置左侧 Splitter 的初始大小 (大致比例)
-        left_splitter.setSizes([150, 80, 300, 10, 10])
 
-        main_layout.addWidget(left_splitter)
+        self.save_model_button = QPushButton("保存模型 (用于推测)")  # 新增
+        self.save_model_button.setMaximumHeight(50)
+        left_splitter.addWidget(self.save_model_button)
+
+        # 设置左侧 Splitter 的初始大小 (大致比例)
+        left_splitter.setSizes([150, 80, 300, 10, 10, 10])
+
+        # 使用主 Splitter 统一 1:5 比例
+        main_splitter = QSplitter(Qt.Horizontal)
+        main_splitter.addWidget(left_splitter)
 
         # --- 设置绘图区域 ---
-        self.setup_plot_area(main_layout)
+        # 注意：setup_plot_area 接受 parent_layout，这里我们传入 splitter (兼容 addWidget)
+        self.setup_plot_area(main_splitter)
 
-        # 设置主布局拉伸因子 (右侧更宽)
-        main_layout.setStretchFactor(left_splitter, 2)
-        main_layout.setStretchFactor(self.scroll_area, 8)
+        main_splitter.setSizes([400, 2000])
+        main_splitter.setCollapsible(0, False)
+
+        main_layout.addWidget(main_splitter)
 
     def setup_data_list_area(self, parent_splitter: QSplitter):
         """配置数据加载区域的 UI 元素"""
@@ -101,8 +114,8 @@ class ClusteringUI:
         # 样式表
         self.data_load_area.setStyleSheet('''
             QWidget#data_load_area {
-                background-color: #f0f0f0;
-                border: 1px solid #cccccc;
+                background-color: #f5f5f5;
+                border: 1px solid #999;
                 border-radius: 4px;
             }
             QLabel {
@@ -113,12 +126,12 @@ class ClusteringUI:
             }
             QListWidget#submissionList {
                 background-color: white;
-                border: 1px solid #bbbbbb;
+                border: 1px solid #ccc;
                 font-size: 25px;
             }
             QListWidget#submissionList::item:selected {
-                 background-color: #e0e0e0;
-                 color: black;
+                background-color: #e0e0e0;
+                color: black;
             }
         ''')
 

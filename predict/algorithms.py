@@ -1,9 +1,10 @@
 # algorithms.py
 import numpy as np
 import pyabf
+import torch
 from scipy.signal import peak_widths
 from sklearn.cluster import KMeans
-
+from train.train_snn import SNN, LIFNode, SurrogateHeaviside
 
 class Algorithms:
 
@@ -79,3 +80,71 @@ class Algorithms:
         dbscan = DBSCAN(eps=params['eps'], min_samples=params['min_samples'])
         labels = dbscan.fit_predict(data)
         return labels, None  # DBSCAN 没有 predict 方法，返回 None 模型
+
+    @staticmethod
+    def run_bp_inference(path, peak_indices, model_info):
+        """
+        BP 神经网络推测
+        """
+        # 1. 提取特征
+        segments, signal_data, valid_indices = Algorithms.extract_features_from_abf(path, peak_indices)
+        if len(segments) == 0:
+            return signal_data, [], []
+
+        # 2. 预处理 (Scaler)
+        if 'scaler' in model_info:
+            scaler = model_info['scaler']
+            segments = scaler.transform(segments)
+        
+        # 3. 预测
+        clf = model_info['model']
+        labels = clf.predict(segments)
+        
+        return signal_data, labels, valid_indices
+
+    @staticmethod
+    def run_snn_inference(path, peak_indices, model_info):
+        """
+        SNN 神经网络推测
+        """
+        # 1. 提取特征
+        segments, signal_data, valid_indices = Algorithms.extract_features_from_abf(path, peak_indices)
+        if len(segments) == 0:
+            return signal_data, [], []
+
+        # 2. 预处理
+        if 'scaler' in model_info:
+            scaler = model_info['scaler']
+            segments = scaler.transform(segments)
+        
+        # 3. 加载模型
+        config = model_info['config']
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        # 重建模型结构
+        model = SNN(input_size=config['input_size'], 
+                    hidden_size=config['hidden_size'], 
+                    output_size=config['output_size'], 
+                    num_steps=config['num_steps']).to(device)
+        
+        # 加载参数
+        model.load_state_dict(model_info['model_state_dict'])
+        model.eval()
+        
+        # 4. 预测
+        X_tensor = torch.FloatTensor(segments).to(device)
+        
+        with torch.no_grad():
+            outputs = model(X_tensor)
+            _, predicted = torch.max(outputs.data, 1)
+            
+        pred_indices = predicted.cpu().numpy()
+        
+        # 5. 解码标签
+        if 'label_encoder' in model_info:
+            le = model_info['label_encoder']
+            labels = le.inverse_transform(pred_indices)
+        else:
+            labels = pred_indices
+            
+        return signal_data, labels, valid_indices

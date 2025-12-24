@@ -71,8 +71,13 @@ class DataViewer(QMainWindow):
         self.ui.button_view_data.clicked.connect(self.show_data_view_page)
         self.ui.button_view_analysis.clicked.connect(self.show_analysis_page)
         self.ui.button_view_clustering.clicked.connect(self.show_clustering_page)
+        self.ui.button_view_train.clicked.connect(self.show_train_page)
         self.ui.button_view_predict.clicked.connect(self.show_predict_page)
         self.ui.button_view_settings.clicked.connect(self.show_settings_page)
+
+        # 统计分析页面信号
+        self.ui.btn_refresh_stats.clicked.connect(self.calculate_statistics)
+        self.ui.page_tabs.currentChanged.connect(self.on_tab_changed)
 
     def refresh_list(self):
         """刷新文件列表"""
@@ -541,18 +546,109 @@ class DataViewer(QMainWindow):
         self.ui.main_stack.setCurrentWidget(self.pages['clustering'])
         print("切换到 聚类 页面")
 
+    def show_train_page(self):
+        from train.train import TrainingPage
+        if 'train' not in self.pages:
+            self.pages['train'] = TrainingPage(self.data_manager)
+            self.ui.main_stack.addWidget(self.pages['train'])
+        self.ui.main_stack.setCurrentWidget(self.pages['train'])
+        print("切换到 训练 页面")
+
     def show_predict_page(self):
-        from ..predict import PredictPage
+        from predict.predict import PredictPage
         if 'predict' not in self.pages:
-            self.pages['predict'] = PredictPage()
+            self.pages['predict'] = PredictPage(self.data_manager)
             self.ui.main_stack.addWidget(self.pages['predict'])
+        
+        # 每次切换到预测页面时，强制刷新模型列表
+        self.data_manager.load_models_from_disk()
+        
         self.ui.main_stack.setCurrentWidget(self.pages['predict'])
         print("切换到 预测 页面")
 
     def show_settings_page(self):
-        from ..settings import SettingsPage
+        from settings.settings import SettingsPage
         if 'settings' not in self.pages:
-            self.pages['settings'] = SettingsPage()
+            self.pages['settings'] = SettingsPage(self.data_manager)
             self.ui.main_stack.addWidget(self.pages['settings'])
         self.ui.main_stack.setCurrentWidget(self.pages['settings'])
         print("切换到 设置 页面")
+
+    def on_tab_changed(self, index):
+        """当标签页切换时调用"""
+        # 如果切换到统计页 (假设索引为 1)，自动计算一次
+        if index == 1 and self.full_x is not None:
+            self.calculate_statistics()
+
+    def calculate_statistics(self):
+        """计算当前视图范围内的统计数据并绘制直方图"""
+        if self.full_x is None or self.data_length == 0:
+             # 避免未加载数据时切换标签页报错
+             self.ui.lbl_mean.setText("均值: N/A")
+             self.ui.lbl_std.setText("标准差: N/A")
+             self.ui.lbl_min.setText("最小值: N/A")
+             self.ui.lbl_max.setText("最大值: N/A")
+             self.ui.histogram_plot.clear()
+             return
+
+        print("正在计算统计数据...")
+        # 1. 获取当前视图范围
+        vb = self.ui.main_plot_widget.getViewBox()
+        x_min_view, x_max_view = vb.viewRange()[0]
+        
+        # 2. 查找数据索引
+        start_index = np.searchsorted(self.full_x, x_min_view, side='left')
+        end_index = np.searchsorted(self.full_x, x_max_view, side='right')
+        
+        # 边界保护
+        start_index = max(0, start_index)
+        end_index = min(self.data_length, end_index)
+        
+        if start_index >= end_index:
+            print("当前视图范围内无数据点。")
+            return
+
+        # 3. 提取数据
+        y_subset = self.full_y[start_index:end_index]
+        
+        if len(y_subset) == 0:
+            return
+            
+        # 4. 计算统计量
+        try:
+            mean_val = np.mean(y_subset)
+            std_val = np.std(y_subset)
+            min_val = np.min(y_subset)
+            max_val = np.max(y_subset)
+            
+            # 更新 UI
+            self.ui.lbl_mean.setText(f"均值: {mean_val:.4f}")
+            self.ui.lbl_std.setText(f"标准差: {std_val:.4f}")
+            self.ui.lbl_min.setText(f"最小值: {min_val:.4f}")
+            self.ui.lbl_max.setText(f"最大值: {max_val:.4f}")
+            
+            # 5. 计算和绘制直方图
+            self.ui.histogram_plot.clear()
+            
+            # 自动决定 bin 的数量
+            bins = 100
+            if len(y_subset) > 10000:
+                bins = 200
+                
+            y, x = np.histogram(y_subset, bins=bins)
+            
+            # 绘制 BarGraphItem
+            # x 是 bin edges，长度比 y 多 1，取 bin 中心点
+            x_centers = (x[:-1] + x[1:]) / 2
+            width = (x[1] - x[0]) * 0.9 # 稍微留点缝隙
+            
+            bar_item = pg.BarGraphItem(x=x_centers, height=y, width=width, brush='#6666ff')
+            self.ui.histogram_plot.addItem(bar_item)
+            
+            # 自动调整直方图视图
+            self.ui.histogram_plot.autoRange()
+            
+            print("统计计算完成。")
+            
+        except Exception as e:
+            print(f"统计计算出错: {e}")

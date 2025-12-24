@@ -1,14 +1,60 @@
 # data_manager.py
+import os
+import pickle
+import joblib
 from PyQt5.QtCore import pyqtSignal, QObject
 
 
 class DataManager(QObject):
     submissions_changed_signal = pyqtSignal()
+    models_changed_signal = pyqtSignal()  # 新增：模型列表变化信号
 
     def __init__(self):
         super().__init__()
         self.submissions = []
         self.data_file_paths = []
+
+        self.trained_models = []  # 新增：存储训练模型的列表
+        
+        # 模型保存路径
+        self.model_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'model')
+        if not os.path.exists(self.model_dir):
+            os.makedirs(self.model_dir)
+            
+        # 启动时加载模型
+        self.load_models_from_disk()
+
+    def load_models_from_disk(self):
+        """从磁盘加载模型"""
+        print("DataManager: 正在从磁盘加载模型...")
+        self.trained_models = []
+        if os.path.exists(self.model_dir):
+            for filename in os.listdir(self.model_dir):
+                if filename.endswith('.pkl'):
+                    try:
+                        path = os.path.join(self.model_dir, filename)
+                        
+                        # 优先使用 joblib 加载 (兼容性更好)
+                        try:
+                            model_info = joblib.load(path)
+                        except Exception:
+                            # 如果 joblib 失败，回退到 pickle
+                            with open(path, 'rb') as f:
+                                model_info = pickle.load(f)
+
+                        # 简单验证一下是不是我们需要的格式
+                        if isinstance(model_info, dict):
+                            # 兼容性修复: 如果没有 name 字段，自动使用文件名
+                            if 'name' not in model_info:
+                                model_info['name'] = os.path.splitext(filename)[0]
+                            
+                            self.trained_models.append(model_info)
+                            print(f"DataManager: 已加载模型 '{model_info['name']}'")
+                    except Exception as e:
+                        print(f"DataManager: 加载模型文件 {filename} 失败: {e}")
+        
+        self.models_changed_signal.emit()
+
 
     def add_file(self, path):
         print("传入文件" + format(path))
@@ -67,3 +113,22 @@ class DataManager(QObject):
                     return None
         print(f"DataManager: 未找到名为 '{name}' 的 submission。")
         return None  # 循环结束还没找到，返回 None
+
+    # --- 新增模型管理方法 ---
+
+    def add_model(self, model_info: dict):
+        """保存模型信息"""
+        self.trained_models.append(model_info)
+        print(f"DataManager: 模型 '{model_info.get('name')}' 已保存。")
+        self.models_changed_signal.emit()
+
+    def get_model_names(self):
+        """获取所有模型名称"""
+        return [m.get('name', '未命名模型') for m in self.trained_models]
+
+    def get_model_by_name(self, name):
+        """获取模型对象和标签映射"""
+        for m in self.trained_models:
+            if m.get('name') == name:
+                return m
+        return None
